@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #f3f5f7;
+  --card-bg: #121212;
+  --border-color: #262626;
+  --secondary-text: #777777;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card-bg);
+  --color-border-custom: var(--border-color);
+  --color-secondary-text: var(--secondary-text);
+  
+  --animate-fade-in: fade-in 0.15s ease-out;
+  --animate-scale-in: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-up: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scale-in {
+    from { transform: scale(0.98); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { transform: translateY(12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+}
+
+/* 全域電腦版樣式排版調整與網頁邊界 */
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #262626 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #262626;
+  border-radius: 4px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 經典工程師手藝：平直、像素級對齊邊框與微加深 hover */
+.threads-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.threads-card:hover {
+  background-color: #161616;
+  border-color: #363636;
+}
+
+/* 去 AI 化：純粹且無磨砂發光的標準彈窗樣式 */
+.standard-modal {
+  background: #121212;
+  border: 1px solid #262626;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+.standard-input {
+  background: #000000;
+  border: 1px solid #262626;
+  color: #f3f5f7;
+  transition: border-color 0.2s ease;
+}
+
+.standard-input:focus {
+  border-color: #f3f5f7;
+  outline: none;
+}
