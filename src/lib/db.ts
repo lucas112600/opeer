@@ -32,6 +32,18 @@ export interface Vote {
   created_at: string;
 }
 
+export interface Comment {
+  id: string;
+  post_id: string;
+  author_id: string | null; // 匿名時物理隔離為 NULL
+  is_anonymous: boolean;
+  author_username: string;
+  author_name: string;
+  author_avatar: string;
+  content: string;
+  created_at: string;
+}
+
 // 預設的匿名使用者資訊，物理隔離發文者資訊時使用
 export const ANONYMOUS_OWL = {
   username: 'anonymous',
@@ -124,9 +136,35 @@ const initMockDB = () => {
       }
     ];
 
+    const defaultComments: Comment[] = [
+      {
+        id: 'comment-mock-1',
+        post_id: 'post-mock-2',
+        author_id: 'user-mock-1',
+        is_anonymous: false,
+        author_username: 'gossip_king',
+        author_name: '八卦糾察隊長',
+        author_avatar: 'https://api.dicebear.com/7.x/pixel-art/svg?seed=gossip_king',
+        content: '每個月 8000 元當折舊公積金？這真的是我看過最瞎的理由了，直接點擊 👎 瞎爆！這種小氣男還是放生吧，免得婚後連呼吸都要收你折舊費。',
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'comment-mock-2',
+        post_id: 'post-mock-2',
+        author_id: null,
+        is_anonymous: true,
+        author_username: ANONYMOUS_OWL.username,
+        author_name: ANONYMOUS_OWL.full_name,
+        author_avatar: ANONYMOUS_OWL.avatar_url,
+        content: '我覺得這個不是 AA 制，這是把妳當成付費房客了。建議妳也跟他算折舊：妳每個月做家事、煮飯、陪伴他的精神磨損與生理折舊，每個月跟他收一萬五千元！',
+        created_at: new Date(Date.now() - 1800000).toISOString(),
+      }
+    ];
+
     setLocalStorage('opper_profiles', defaultProfiles);
     setLocalStorage('opper_posts', defaultPosts);
     setLocalStorage('opper_votes', []);
+    setLocalStorage('opper_comments', defaultComments);
   }
 };
 
@@ -545,6 +583,101 @@ export const db = {
       let localUserKey = userId ? `user-${userId}` : 'guest-visitor';
       const vote = votes.find(v => v.post_id === postId && v.user_id === localUserKey);
       return vote ? vote.vote_type : null;
+    }
+  },
+
+  // 獲取話題貼文的所有回覆留言
+  getComments: async (postId: string): Promise<Comment[]> => {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as Comment[];
+    } else {
+      initMockDB();
+      const comments = getLocalStorage<Comment[]>('opper_comments', []);
+      return comments
+        .filter(c => c.post_id === postId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    }
+  },
+
+  // 發表回覆留言
+  createComment: async (
+    postId: string,
+    author: Profile,
+    content: string,
+    isAnonymous: boolean
+  ): Promise<Comment> => {
+    const commentData: Omit<Comment, 'id' | 'created_at'> = isAnonymous
+      ? {
+          post_id: postId,
+          author_id: null,
+          is_anonymous: true,
+          author_username: ANONYMOUS_OWL.username,
+          author_name: ANONYMOUS_OWL.full_name,
+          author_avatar: ANONYMOUS_OWL.avatar_url,
+          content: content,
+        }
+      : {
+          post_id: postId,
+          author_id: author.id,
+          is_anonymous: false,
+          author_username: author.username,
+          author_name: author.full_name,
+          author_avatar: author.avatar_url,
+          content: content,
+        };
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('comments')
+        .insert([commentData])
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Comment;
+    } else {
+      const newComment: Comment = {
+        id: 'comment-' + Math.random().toString(36).substring(2, 15),
+        ...commentData,
+        created_at: new Date().toISOString(),
+      };
+
+      const comments = getLocalStorage<Comment[]>('opper_comments', []);
+      comments.push(newComment);
+      setLocalStorage('opper_comments', comments);
+      return newComment;
+    }
+  },
+
+  // 刪除回覆留言
+  deleteComment: async (commentId: string, userId: string): Promise<void> => {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('author_id', userId);
+      if (error) throw error;
+    } else {
+      const comments = getLocalStorage<Comment[]>('opper_comments', []);
+      const comment = comments.find(c => c.id === commentId);
+      if (!comment) throw new Error('回覆不存在');
+
+      if (comment.is_anonymous) {
+        throw new Error('匿名回覆已物理隔離，發表後不可刪除');
+      }
+
+      if (comment.author_id !== userId) {
+        throw new Error('無權限刪除他人回覆');
+      }
+
+      const filtered = comments.filter(c => c.id !== commentId);
+      setLocalStorage('opper_comments', filtered);
     }
   }
 };

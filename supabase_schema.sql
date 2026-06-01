@@ -135,8 +135,42 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- 5. 建立話題留言表 (Comments)
+-- 匿名留言防禦核心：當 is_anonymous 為 true 時，author_id 必須寫入 NULL
+CREATE TABLE public.comments (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+    author_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- 匿名時為 NULL，切斷與使用者的實體物理關聯
+    is_anonymous BOOLEAN DEFAULT false NOT NULL,
+    author_username TEXT NOT NULL,      -- 顯示名稱：真實 username 或 "anonymous"
+    author_name TEXT NOT NULL,          -- 顯示名稱：真實姓名 或 "匿名使用者"
+    author_avatar TEXT NOT NULL,        -- 顯示頭像：真實頭像 或 幾何幾何頭像
+    content TEXT NOT NULL,              -- 留言主體內容
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 啟用 Comments 行級安全政策 (RLS)
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+
+-- Comments 的 RLS 政策
+CREATE POLICY "允許所有人讀取所有話題留言" 
+    ON public.comments FOR SELECT 
+    USING (true);
+
+CREATE POLICY "允許登入使用者發表話題留言" 
+    ON public.comments FOR INSERT 
+    WITH CHECK (
+        -- 如果是匿名回覆，author_id 必須為 NULL，保障物理隔離
+        (is_anonymous = true AND author_id IS NULL) OR
+        -- 如果是非匿名回覆，author_id 必須與當前登入者 ID 相同
+        (is_anonymous = false AND auth.uid() = author_id)
+    );
+
+CREATE POLICY "僅允許發表者刪除自己非匿名之話題留言" 
+    ON public.comments FOR DELETE 
+    USING (is_anonymous = false AND auth.uid() = author_id);
