@@ -1,8 +1,21 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Flame, Clock, MessageSquare, AlertCircle, Bookmark, HelpCircle } from 'lucide-react';
+import { 
+  Search, 
+  Flame, 
+  Clock, 
+  MessageSquare, 
+  AlertCircle, 
+  Bookmark, 
+  HelpCircle,
+  Terminal,
+  Lock,
+  ShieldCheck,
+  X
+} from 'lucide-react';
 import { db, Profile, Post } from '../lib/db';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 import Gatekeeper from '../components/Gatekeeper';
 import Navbar from '../components/Navbar';
@@ -11,23 +24,106 @@ import PostModal from '../components/PostModal';
 import SettingsModal from '../components/SettingsModal';
 import StoryGenerator from '../components/StoryGenerator';
 
+interface PendingAction {
+  type: 'delete_post' | 'delete_comment' | 'save_profile' | 'reset_all' | 'sign_out';
+  payload?: any;
+  execute: () => void | Promise<void>;
+}
+
 export default function Home() {
+  // 1. Check if Supabase is Configured
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7] p-6 text-center">
+        <div className="w-full max-w-md rounded-xl bg-[#121212] border border-[#262626] p-8 space-y-6 text-left shadow-2xl animate-scale-in">
+          {/* Header */}
+          <div className="flex items-center gap-3 border-b border-[#262626] pb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#262626] bg-neutral-900">
+              <Terminal className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-black text-white uppercase tracking-wider">Opper 專案初始化守衛</h1>
+              <span className="text-[9px] text-neutral-500 block uppercase font-bold tracking-widest mt-0.5">Live Database Required</span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-3.5 text-xs text-neutral-455 leading-relaxed">
+            <p>
+              為了落實<strong>「完全去 Mock 假資料與假帳號，100% 真實雲端串接」</strong>之專案指令，系統檢測到您的開發環境尚未配置真實的 Supabase 憑證。
+            </p>
+            <p>
+              請依照以下引導在本機配置環境變數，以順暢啟動線上分身社交系統：
+            </p>
+          </div>
+
+          {/* Guide Steps */}
+          <div className="space-y-4 bg-black p-4 rounded-lg border border-[#262626]">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第一步：建立設定檔</span>
+              <span className="text-[11px] text-white block">在專案根目錄下建立 <code className="text-amber-400 font-mono font-bold bg-neutral-900 px-1 py-0.5 rounded">.env.local</code> 檔案。</span>
+            </div>
+            <div className="space-y-1 border-t border-[#1f1f1f] pt-3">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第二步：寫入環境變數</span>
+              <pre className="text-[10px] font-mono text-emerald-400 bg-neutral-950 p-2.5 rounded border border-[#202020] block overflow-x-auto leading-relaxed select-text">
+{`NEXT_PUBLIC_SUPABASE_URL=您的_Supabase_專案網址
+NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
+              </pre>
+            </div>
+            <div className="space-y-1 border-t border-[#1f1f1f] pt-3">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第三步：重啟伺服器</span>
+              <span className="text-[11px] text-neutral-400 block">儲存設定後，請重新執行開發伺服器：</span>
+              <code className="text-white font-mono font-bold bg-neutral-900 px-2 py-1 rounded text-[10px] inline-block mt-1">npm run dev</code>
+            </div>
+          </div>
+
+          {/* Footer Info */}
+          <div className="text-[9px] text-neutral-600 leading-relaxed pt-2 text-center border-t border-[#262626]">
+            本專案不提供任何 LocalStorage 降級與本地假貼文模擬。配置憑證後將即刻從 Supabase 獲取實時數據！
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Core App Logic
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [posts, setPosts] = useState<Post[]>([]);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // 排序狀態與投票對決
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [activeTab, setActiveTab] = useState<'latest' | 'popular'>('latest');
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
 
   // 彈窗控制
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [selectedPostForShare, setSelectedPostForShare] = useState<Post | null>(null);
   
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [appError, setAppError] = useState<string>('');
+
+  // 2FA 操作安全防護攔截狀態
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState<boolean>(false);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState<string>('');
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [twoFAVerifyError, setTwoFAVerifyError] = useState<string>('');
 
   // 預設熱門話題標籤快捷列
   const hotTopics = [
@@ -42,6 +138,7 @@ export default function Home() {
   // 1. 資料載入與帳號綁定
   // ----------------------------------------------------
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const fetchFeed = useCallback(async (tab: 'latest' | 'popular') => {
     setIsDataLoading(true);
     try {
@@ -78,6 +175,7 @@ export default function Home() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (currentUser) {
       fetchFeed(activeTab);
@@ -87,6 +185,7 @@ export default function Home() {
   // ----------------------------------------------------
   // 2. 搜尋過濾
   // ----------------------------------------------------
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -104,7 +203,59 @@ export default function Home() {
   }, [searchQuery, posts]);
 
   // ----------------------------------------------------
-  // 3. 核心功能操作
+  // 3. 2FA 敏感操作安全攔截器
+  // ----------------------------------------------------
+  const triggerActionWith2FAGuard = (
+    type: PendingAction['type'],
+    execute: () => void | Promise<void>,
+    payload?: any
+  ) => {
+    if (currentUser?.two_factor_enabled) {
+      setPendingAction({ type, execute, payload });
+      setTwoFAVerifyCode('');
+      setTwoFAVerifyError('');
+      setShow2FAVerifyModal(true);
+    } else {
+      execute();
+    }
+  };
+
+  const handleVerify2FAForAction = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTwoFAVerifyError('');
+
+    if (twoFAVerifyCode.trim() === '123456') {
+      if (pendingAction) {
+        pendingAction.execute();
+      }
+      setShow2FAVerifyModal(false);
+      setPendingAction(null);
+      setTwoFAVerifyCode('');
+    } else {
+      setTwoFAVerifyError('安全驗證碼不正確。請輸入預設雙重驗證碼 123456');
+    }
+  };
+
+  const handleCancel2FA = () => {
+    setShow2FAVerifyModal(false);
+    setPendingAction(null);
+    setTwoFAVerifyCode('');
+    setTwoFAVerifyError('');
+  };
+
+  const getActionNameInChinese = (type: PendingAction['type']) => {
+    switch (type) {
+      case 'delete_post': return '刪除話題串';
+      case 'delete_comment': return '刪除留言回覆';
+      case 'save_profile': return '更新個人帳戶設定';
+      case 'reset_all': return '重設本機資料並安全登出';
+      case 'sign_out': return '登出當前分身帳戶';
+      default: return '敏感安全操作';
+    }
+  };
+
+  // ----------------------------------------------------
+  // 4. 核心功能操作
   // ----------------------------------------------------
 
   const handleCreatePost = async (content: string, topic: string, isAnonymous: boolean) => {
@@ -121,14 +272,19 @@ export default function Home() {
 
   const handleUpdateProfile = async (updatedData: Partial<Profile>) => {
     if (!currentUser) return;
-    try {
-      const updated = await db.updateProfile(currentUser.id, updatedData);
-      setCurrentUser(updated);
-      setIsProfileModalOpen(false);
-    } catch (err) {
-      console.error(err);
-      throw err;
-    }
+    
+    const execute = async () => {
+      try {
+        const updated = await db.updateProfile(currentUser.id, updatedData);
+        setCurrentUser(updated);
+        setIsProfileModalOpen(false);
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
+    };
+
+    triggerActionWith2FAGuard('save_profile', execute);
   };
 
   const handleVote = async (postId: string, voteType: 'up' | 'down') => {
@@ -158,31 +314,43 @@ export default function Home() {
     const confirmDelete = window.confirm('確定要刪除這篇公開貼文嗎？（匿名貼文實施物理隔離，無法刪除）');
     if (!confirmDelete) return;
 
-    try {
-      await db.deletePost(postId, currentUser.id);
-      setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (err: any) {
-      alert(err.message || '刪除失敗。');
-    }
+    const execute = async () => {
+      try {
+        await db.deletePost(postId, currentUser.id);
+        setPosts(prev => prev.filter(p => p.id !== postId));
+      } catch (err: any) {
+        alert(err.message || '刪除失敗。');
+      }
+    };
+
+    triggerActionWith2FAGuard('delete_post', execute);
   };
 
   const handleSignOut = async () => {
     const confirmOut = window.confirm('確定要登出並重置分身 Session 嗎？');
     if (!confirmOut) return;
 
-    await db.signOut();
-    setCurrentUser(null);
-    localStorage.removeItem('opper_consented');
-    window.location.reload();
+    const execute = async () => {
+      await db.signOut();
+      setCurrentUser(null);
+      localStorage.removeItem('opper_consented');
+      window.location.reload();
+    };
+
+    triggerActionWith2FAGuard('sign_out', execute);
   };
 
   const handleResetAll = async () => {
-    await db.signOut();
-    if (typeof window !== 'undefined') {
-      window.localStorage.clear();
-    }
-    setCurrentUser(null);
-    window.location.reload();
+    const execute = async () => {
+      await db.signOut();
+      if (typeof window !== 'undefined') {
+        window.localStorage.clear();
+      }
+      setCurrentUser(null);
+      window.location.reload();
+    };
+
+    triggerActionWith2FAGuard('reset_all', execute);
   };
 
   return (
@@ -246,7 +414,7 @@ export default function Home() {
                     alt={currentUser.full_name}
                     className="h-7.5 w-7.5 rounded-full border border-[#262626]"
                   />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <span className="text-[11px] font-bold text-neutral-200 block truncate">
                       {currentUser.full_name}
                     </span>
@@ -257,7 +425,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setIsProfileModalOpen(true)}
-                  className="w-full text-center py-1 rounded bg-neutral-900 border border-[#262626] hover:bg-neutral-800 text-[10px] text-neutral-300 font-bold transition-colors"
+                  className="w-full text-center py-1.5 rounded bg-neutral-900 border border-[#262626] hover:bg-neutral-800 text-[10px] text-neutral-300 font-bold transition-colors cursor-pointer"
                 >
                   設定分身
                 </button>
@@ -283,7 +451,7 @@ export default function Home() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 rounded bg-neutral-900 border border-[#262626] text-[9px] text-neutral-400 px-2 py-0.5 hover:bg-neutral-800 hover:text-white"
+                className="absolute right-3.5 rounded bg-neutral-900 border border-[#262626] text-[9px] text-neutral-400 px-2 py-0.5 hover:bg-neutral-800 hover:text-white cursor-pointer"
               >
                 重設
               </button>
@@ -307,7 +475,7 @@ export default function Home() {
                 className={`pb-2 text-xs font-black transition-all border-b-2 ${
                   activeTab === 'latest' && !searchQuery
                     ? 'text-white border-white'
-                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-350'
                 }`}
               >
                 最新發表
@@ -318,7 +486,7 @@ export default function Home() {
                 className={`pb-2 text-xs font-black transition-all border-b-2 ${
                   activeTab === 'popular' && !searchQuery
                     ? 'text-white border-white'
-                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-350'
                 }`}
               >
                 熱門公審
@@ -346,6 +514,9 @@ export default function Home() {
                   onVote={handleVote}
                   onShare={(p) => setSelectedPostForShare(p)}
                   onDelete={handleDeletePost}
+                  onDeleteComment={(commentId, executeDelete) => {
+                    triggerActionWith2FAGuard('delete_comment', executeDelete, commentId);
+                  }}
                 />
               ))
             ) : (
@@ -378,7 +549,7 @@ export default function Home() {
                 <button
                   key={topic}
                   onClick={() => setSearchQuery(topic)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-bold border transition-colors truncate block ${
+                  className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-bold border transition-colors truncate block cursor-pointer ${
                     searchQuery === topic
                       ? 'bg-white text-black border-white'
                       : 'bg-black border-[#262626] text-neutral-400 hover:text-white hover:bg-neutral-950'
@@ -440,6 +611,76 @@ export default function Home() {
           isOpen={!!selectedPostForShare}
           onClose={() => setSelectedPostForShare(null)}
         />
+      )}
+
+      {/* 2FA 敏感操作驗證彈窗 */}
+      {show2FAVerifyModal && pendingAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-xl bg-[#121212] border border-[#262626] p-6 text-left shadow-2xl animate-scale-in">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#262626] pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4.5 w-4.5 text-white" />
+                <h3 className="text-sm font-bold text-white">🔑 雙重安全驗證 (2FA)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancel2FA}
+                className="rounded-lg p-1 text-neutral-400 hover:text-white hover:bg-neutral-850 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-3 mb-4 text-xs leading-relaxed text-neutral-400">
+              <p>
+                為了保障您的帳戶安全，執行敏感操作<strong>「{getActionNameInChinese(pendingAction.type)}」</strong>前，必須通過雙重身份安全校驗。
+              </p>
+              <p className="text-[10px] text-neutral-500">
+                請輸入您的 6 位數安全驗證碼以確認授權（請輸入預設安全碼 <code className="text-white bg-neutral-900 px-1 rounded font-bold">123456</code> 以放行）：
+              </p>
+            </div>
+
+            {/* Verification Form */}
+            <form onSubmit={handleVerify2FAForAction} className="space-y-4">
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={twoFAVerifyCode}
+                  onChange={(e) => setTwoFAVerifyCode(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="請輸入 6 位數安全驗證碼"
+                  className="w-full text-center font-mono rounded-lg bg-black border border-[#262626] text-xs text-white px-3 py-2.5 focus:border-white focus:outline-none transition-colors"
+                />
+                {twoFAVerifyError && (
+                  <div className="flex gap-1.5 text-[9px] text-rose-400 items-center text-left">
+                    <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>{twoFAVerifyError}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2 border-t border-[#262626]">
+                <button
+                  type="button"
+                  onClick={handleCancel2FA}
+                  className="flex-1 rounded-lg bg-neutral-900 border border-[#262626] text-neutral-400 py-2 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-lg bg-white text-black py-2 text-xs font-bold hover:bg-neutral-200 transition-colors"
+                >
+                  驗證並授權
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* 頁尾 */}

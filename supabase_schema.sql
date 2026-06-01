@@ -9,6 +9,8 @@ CREATE TABLE public.profiles (
     avatar_url TEXT,
     bio TEXT,
     is_public BOOLEAN DEFAULT true NOT NULL,
+    two_factor_enabled BOOLEAN DEFAULT false NOT NULL,
+    sensitive_filter_enabled BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     
     CONSTRAINT username_length CHECK (char_length(username) >= 3 AND char_length(username) <= 24),
@@ -46,6 +48,7 @@ CREATE TABLE public.posts (
     content TEXT NOT NULL,              -- 發文主體內容
     upvotes INTEGER DEFAULT 0 NOT NULL, -- 挺他票數
     downvotes INTEGER DEFAULT 0 NOT NULL,-- 瞎爆票數
+    has_sensitive_content BOOLEAN DEFAULT false NOT NULL, -- 敏感過濾警示標記
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     
     CONSTRAINT topic_format CHECK (topic LIKE '#%')
@@ -151,6 +154,7 @@ CREATE TABLE public.comments (
     author_name TEXT NOT NULL,          -- 顯示名稱：真實姓名 或 "匿名使用者"
     author_avatar TEXT NOT NULL,        -- 顯示頭像：真實頭像 或 幾何幾何頭像
     content TEXT NOT NULL,              -- 留言主體內容
+    has_sensitive_content BOOLEAN DEFAULT false NOT NULL, -- 敏感過濾警示標記
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 

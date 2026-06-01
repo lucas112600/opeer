@@ -11,6 +11,7 @@ interface PostCardProps {
   onVote: (postId: string, voteType: 'up' | 'down') => void;
   onShare: (post: Post) => void;
   onDelete: (postId: string) => void;
+  onDeleteComment?: (commentId: string, onSuccess: () => void) => void;
 }
 
 export default function PostCard({
@@ -20,6 +21,7 @@ export default function PostCard({
   onVote,
   onShare,
   onDelete,
+  onDeleteComment,
 }: PostCardProps) {
   
   // 留言與回覆狀態
@@ -29,6 +31,10 @@ export default function PostCard({
   const [isAnonReply, setIsAnonReply] = useState<boolean>(false);
   const [replyError, setReplyError] = useState<string>('');
   const [isSubmittingReply, setIsSubmittingReply] = useState<boolean>(false);
+
+  // 敏感內容顯示解鎖狀態
+  const [revealPost, setRevealPost] = useState<boolean>(false);
+  const [revealedComments, setRevealedComments] = useState<Record<string, boolean>>({});
 
   // 1. 卡片掛載時自動加載該話題的留言數與清單
   useEffect(() => {
@@ -107,16 +113,28 @@ export default function PostCard({
   // 刪除回覆留言
   const handleDeleteComment = async (commentId: string) => {
     if (!currentUser) return;
-    const confirmDelete = window.confirm('確定要刪除這條回覆留言嗎？（匿名回覆已實施物理隔離，無法刪除）');
-    if (!confirmDelete) return;
 
-    try {
-      await db.deleteComment(commentId, currentUser.id);
-      setCommentsList(prev => prev.filter(c => c.id !== commentId));
-    } catch (err: any) {
-      alert(err.message || '刪除留言失敗。');
+    const executeDelete = async () => {
+      try {
+        await db.deleteComment(commentId, currentUser.id);
+        setCommentsList(prev => prev.filter(c => c.id !== commentId));
+      } catch (err: any) {
+        alert(err.message || '刪除留言失敗。');
+      }
+    };
+
+    if (onDeleteComment) {
+      onDeleteComment(commentId, executeDelete);
+    } else {
+      const confirmDelete = window.confirm('確定要刪除這條回覆留言嗎？（匿名回覆已實施物理隔離，無法刪除）');
+      if (!confirmDelete) return;
+      await executeDelete();
     }
   };
+
+  const isPostBlurred = post.has_sensitive_content && 
+    (!currentUser || currentUser.sensitive_filter_enabled !== false) && 
+    !revealPost;
 
   return (
     <article 
@@ -177,20 +195,43 @@ export default function PostCard({
             </div>
           </div>
 
-          {/* 話題主題標籤 (#感情公審...) */}
-          <div className="mb-2">
-            <span 
-              id={`tag-${post.id}`}
-              className="text-[10px] font-bold text-neutral-300 bg-neutral-900 px-2 py-0.5 rounded border border-[#262626] hover:bg-neutral-800 transition-colors inline-block"
-            >
-              {post.topic}
-            </span>
-          </div>
+          {isPostBlurred ? (
+            <div className="relative rounded-lg overflow-hidden border border-[#262626] bg-[#161616] p-4.5 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-left animate-fade-in mt-2">
+              <div className="flex items-start gap-3">
+                <EyeOff className="h-5 w-5 text-neutral-500 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <span className="text-xs font-bold text-neutral-350 block">⚠️ 內容警示</span>
+                  <span className="text-[10px] text-neutral-500 block leading-relaxed max-w-sm">
+                    此話題包含敏感或爭議性內容。您的「敏感內容過濾器」已開啟，因此已自動隱藏此話題。
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRevealPost(true)}
+                className="flex-shrink-0 rounded bg-neutral-900 border border-[#262626] text-neutral-350 hover:text-white hover:bg-neutral-850 px-3.5 py-2 text-[10px] font-bold transition-all active:scale-95 cursor-pointer"
+              >
+                顯示內容
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 話題主題標籤 (#感情公審...) */}
+              <div className="mb-2">
+                <span 
+                  id={`tag-${post.id}`}
+                  className="text-[10px] font-bold text-neutral-300 bg-neutral-900 px-2 py-0.5 rounded border border-[#262626] hover:bg-neutral-800 transition-colors inline-block"
+                >
+                  {post.topic}
+                </span>
+              </div>
 
-          {/* 主文內容 */}
-          <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-4 select-text">
-            {post.content}
-          </p>
+              {/* 主文內容 */}
+              <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-4 select-text">
+                {post.content}
+              </p>
+            </>
+          )}
 
           {/* 靜態審判按鈕與功能操作列 */}
           <div className="flex items-center justify-between border-t border-[#262626] pt-3 flex-wrap sm:flex-nowrap gap-2">
@@ -263,6 +304,9 @@ export default function PostCard({
             <div className="space-y-4 w-full">
               {commentsList.map((comment, index) => {
                 const isMyComment = currentUser && !comment.is_anonymous && comment.author_id === currentUser.id;
+                const isCommentBlurred = comment.has_sensitive_content && 
+                  (!currentUser || currentUser.sensitive_filter_enabled !== false) && 
+                  !revealedComments[comment.id];
                 
                 return (
                   <div key={comment.id} className="flex w-full items-start">
@@ -319,9 +363,25 @@ export default function PostCard({
                         </div>
                       </div>
 
-                      <p className="text-[11px] text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 select-text">
-                        {comment.content}
-                      </p>
+                      {isCommentBlurred ? (
+                        <div className="relative rounded-lg overflow-hidden border border-[#262626] bg-[#141414] p-3 mb-2 flex items-center justify-between gap-3 text-left mt-1.5 animate-fade-in">
+                          <div className="flex items-center gap-2">
+                            <EyeOff className="h-3.5 w-3.5 text-neutral-500 flex-shrink-0" />
+                            <span className="text-[10px] text-neutral-500">⚠️ 此回覆含敏感爭議內容</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setRevealedComments(prev => ({ ...prev, [comment.id]: true }))}
+                            className="rounded bg-neutral-900 border border-[#262626] text-neutral-450 hover:text-white px-2 py-1 text-[9px] font-bold transition-all active:scale-95 cursor-pointer animate-fade-in"
+                          >
+                            顯示內容
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 select-text">
+                          {comment.content}
+                        </p>
+                      )}
                     </div>
 
                   </div>
