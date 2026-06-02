@@ -255,6 +255,13 @@ async function getUnreadCount(userId) {
                 <Code className="h-3.5 w-3.5 shrink-0" />
                 <span>JavaScript API</span>
               </a>
+              <a 
+                href="#team"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-neutral-400 hover:bg-neutral-950 hover:text-white transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-neutral-350" />
+                <span>團隊與聯絡資訊</span>
+              </a>
             </nav>
           </div>
 
@@ -505,12 +512,61 @@ author_name = "匿名使用者"`}
             </div>
           </section>
 
+          {/* 7. 開發團隊與聯絡資訊 */}
+          <section id="team" className="scroll-mt-24 space-y-4">
+            <div className="flex items-center gap-2 border-b border-[#262626] pb-2">
+              <Sparkles className="h-4 w-4 text-white" />
+              <h2 className="text-sm font-black uppercase text-white tracking-wider">7. 團隊與開源聯絡資訊 (Team & Contact Info)</h2>
+            </div>
+            
+            <div className="bg-[#121212] border border-[#262626] p-5 rounded-lg space-y-4 text-xs text-neutral-400 leading-relaxed">
+              <p>
+                Opper 社交審判與分身社群專案是由開源倡議團隊共同研發維護。我們致力於推廣絕對隱私、物理隔離發文以及透明公正的智慧推播技術。
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#1f1f1f]">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">👤 核心開發與專案發起</span>
+                  <span className="text-xs font-bold text-neutral-200 block">Lucas Wang (王思源)</span>
+                  <a 
+                    href="https://github.com/lucas112600" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[10px] text-neutral-450 hover:text-white underline inline-block"
+                  >
+                    GitHub: @lucas112600
+                  </a>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">📁 官方開源 GitHub 儲存庫</span>
+                  <span className="text-xs font-bold text-neutral-200 block">Opeer Open Source Project</span>
+                  <a 
+                    href="https://github.com/lucas112600/opeer" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[10px] text-neutral-450 hover:text-white underline inline-block"
+                  >
+                    Repository: lucas112600/opeer
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-[#1f1f1f]">
+                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">✉️ 聯絡管道與資安漏洞回報</span>
+                <p className="text-neutral-450">
+                  如果您發現了任何系統資安漏洞、RLS 權限洩漏或是有功能升級提案，請直接至我們的 GitHub 儲存庫提交 **Issue** 或發起 **Pull Request**。我們的開源倡議小組將會於第一時間積極審查並對程式碼進行安全性修補，共同維護去中心化的言論淨土。
+                </p>
+              </div>
+            </div>
+          </section>
+
         </main>
       </div>
 
       {/* 頁尾 */}
       <footer className="w-full border-t border-[#262626] py-8 text-center text-[10px] text-neutral-600 bg-black mt-20 flex-shrink-0">
-        <p className="mb-2">© 2026 Opper Open Source Social Project. 開源倡議與匿名保護網絡.</p>
+        <p className="mb-2">© 2026 Opeer Open Source Initiative by Lucas Wang. 脆風格公共話題審判與分身社交網絡.</p>
         <p className="text-neutral-500">本文件使用漢文 (繁體中文) 編譯，採用 MIT Open Source License 對外授權架構.</p>
       </footer>
 
