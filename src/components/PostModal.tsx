@@ -31,6 +31,8 @@ export default function PostModal({
   // 多媒體附件狀態
   const [imageUrl, setImageUrl] = useState<string>('');
   const [videoUrl, setVideoUrl] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isVideoUploading, setIsVideoUploading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -38,6 +40,7 @@ export default function PostModal({
 
   // 語音錄製狀態
   const [audioUrl, setAudioUrl] = useState<string>('');
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
@@ -72,6 +75,7 @@ export default function PostModal({
     }
 
     setIsUploading(true);
+    setImageFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
       setImageUrl(reader.result as string);
@@ -96,6 +100,7 @@ export default function PostModal({
     }
 
     setIsVideoUploading(true);
+    setVideoFile(file);
     const reader = new FileReader();
     reader.onloadend = () => {
       setVideoUrl(reader.result as string);
@@ -123,6 +128,7 @@ export default function PostModal({
 
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'audio/webm' });
+        setAudioBlob(blob);
         
         // 讀取為 Base64 Data URL 寫入 Supabase
         const reader = new FileReader();
@@ -186,6 +192,7 @@ export default function PostModal({
       previewAudioObj.pause();
     }
     setAudioUrl('');
+    setAudioBlob(null);
     setIsPlayingPreview(false);
     setPreviewAudioObj(null);
     setRecordingDuration(0);
@@ -228,19 +235,43 @@ export default function PostModal({
         previewAudioObj.pause();
       }
 
+      let finalImageUrl = imageUrl;
+      let finalVideoUrl = videoUrl;
+      let finalAudioUrl = audioUrl;
+
+      // 1. 上傳相片到 Supabase Storage
+      if (imageFile) {
+        setErrorMsg('正在上傳相片附件至儲存桶...');
+        finalImageUrl = await db.uploadFile('media', 'images', imageFile, imageFile.name);
+      }
+
+      // 2. 上傳影片到 Supabase Storage
+      if (videoFile) {
+        setErrorMsg('正在上傳影片附件至儲存桶...');
+        finalVideoUrl = await db.uploadFile('media', 'videos', videoFile, videoFile.name);
+      }
+
+      // 3. 上傳語音錄音到 Supabase Storage
+      if (audioBlob) {
+        setErrorMsg('正在上傳語音錄製音軌...');
+        finalAudioUrl = await db.uploadFile('media', 'audio', audioBlob, 'audio.webm');
+      }
+
       await onSubmit(
         content.trim(), 
         finalTopic, 
         isAnonymous, 
-        imageUrl || undefined,
-        videoUrl || undefined,
-        audioUrl || undefined
+        finalImageUrl || undefined,
+        finalVideoUrl || undefined,
+        finalAudioUrl || undefined
       );
 
       setContent('');
       setTopic('');
       setImageUrl('');
+      setImageFile(null);
       setVideoUrl('');
+      setVideoFile(null);
       clearAudio();
       setIsAnonymous(false);
       setErrorMsg('');
@@ -395,7 +426,7 @@ export default function PostModal({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setImageUrl('')}
+                  onClick={() => { setImageUrl(''); setImageFile(null); }}
                   className="rounded p-1 text-neutral-500 hover:text-rose-455 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   title="移除附圖"
                 >
@@ -453,7 +484,7 @@ export default function PostModal({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setVideoUrl('')}
+                  onClick={() => { setVideoUrl(''); setVideoFile(null); }}
                   className="rounded p-1 text-neutral-500 hover:text-rose-455 hover:bg-rose-500/10 transition-colors cursor-pointer"
                   title="移除影片"
                 >

@@ -215,3 +215,37 @@ CREATE POLICY "僅允許接收者本人更新自己的通知狀態"
     ON public.notifications FOR UPDATE
     USING (auth.uid() = recipient_id)
     WITH CHECK (auth.uid() = recipient_id);
+
+
+-- 7. 建立多媒體儲存桶 (Supabase Storage Buckets) 與 RLS 政策
+-- 插入 'media' 儲存桶，開啟 public 存取權
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('media', 'media', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 啟用 storage.objects 行級安全 (RLS) 政策
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- 1. 允許所有人讀取多媒體檔案 (SELECT)
+CREATE POLICY "允許所有人讀取多媒體檔案"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'media');
+
+-- 2. 允許登入使用者上傳多媒體檔案 (INSERT)
+CREATE POLICY "允許登入使用者上傳多媒體檔案"
+    ON storage.objects FOR INSERT
+    WITH CHECK (
+        bucket_id = 'media' AND 
+        auth.role() = 'authenticated'
+    );
+
+-- 3. 允許上傳者刪除與修改自己上傳的檔案 (DELETE/UPDATE)
+CREATE POLICY "允許上傳者刪除自己上傳的檔案"
+    ON storage.objects FOR DELETE
+    USING (bucket_id = 'media' AND auth.uid() = owner);
+
+CREATE POLICY "允許上傳者更新自己上傳的檔案"
+    ON storage.objects FOR UPDATE
+    USING (bucket_id = 'media' AND auth.uid() = owner)
+    WITH CHECK (bucket_id = 'media' AND auth.uid() = owner);
+

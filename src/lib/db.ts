@@ -637,5 +637,36 @@ export const db = {
     } catch (err) {
       console.error('建立提及通知失敗：', err);
     }
+  },
+
+  // 檔案上傳與多媒體存儲管理
+  uploadFile: async (
+    bucket: string,
+    folder: string,
+    file: File | Blob,
+    originalName?: string
+  ): Promise<string> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    
+    const ext = originalName 
+      ? originalName.split('.').pop() 
+      : (file.type.split('/')[1] || 'bin');
+      
+    const uniqueName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 10)}.${ext}`;
+    
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(uniqueName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+      
+    if (error) throw error;
+    
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(uniqueName);
+      
+    return publicUrl;
   }
 };
