@@ -74,6 +74,61 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
 
+  // 脆風格自訂安全對話框 (Custom Dark Dialog Modal)
+  const [customDialog, setCustomDialog] = useState<{
+    isOpen: boolean;
+    type: 'alert' | 'confirm';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  }>({
+    isOpen: false,
+    type: 'alert',
+    title: '',
+    message: '',
+  });
+
+  const customAlert = (title: string, message: string, onConfirm?: () => void) => {
+    setCustomDialog({
+      isOpen: true,
+      type: 'alert',
+      title,
+      message,
+      confirmText: '確定',
+      onConfirm: () => {
+        setCustomDialog(prev => ({ ...prev, isOpen: false }));
+        if (onConfirm) onConfirm();
+      }
+    });
+  };
+
+  const customConfirm = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
+    setCustomDialog({
+      isOpen: true,
+      type: 'confirm',
+      title,
+      message,
+      confirmText: '確定',
+      cancelText: '取消',
+      onConfirm: () => {
+        setCustomDialog(prev => ({ ...prev, isOpen: false }));
+        onConfirm();
+      },
+      onCancel: () => {
+        setCustomDialog(prev => ({ ...prev, isOpen: false }));
+        if (onCancel) onCancel();
+      }
+    });
+  };
+
+  // 覆寫元件作用域內的 global alert
+  const alert = (message: string) => {
+    customAlert('話題社群提示', message);
+  };
+
   // 動態熱門話題標籤快捷列（自動彙整真實貼文標籤，降序排列）
   const hotTopics = (() => {
     const counts: Record<string, number> = {};
@@ -429,8 +484,6 @@ export default function Home() {
 
   const handleDeletePost = async (postId: string) => {
     if (!currentUser) return;
-    const confirmDelete = window.confirm('確定要刪除這篇公開貼文嗎？（匿名貼文實施物理隔離，無法刪除）');
-    if (!confirmDelete) return;
 
     const execute = async () => {
       try {
@@ -441,13 +494,16 @@ export default function Home() {
       }
     };
 
-    triggerActionWith2FAGuard('delete_post', execute);
+    customConfirm(
+      '刪除話題確認', 
+      '您確定要永久刪除這篇公開貼文嗎？（※ 匿名話題已實施物理隔離，無法被任何人刪除）', 
+      () => {
+        triggerActionWith2FAGuard('delete_post', execute);
+      }
+    );
   };
 
   const handleSignOut = async () => {
-    const confirmOut = window.confirm('確定要登出並重置分身 Session 嗎？');
-    if (!confirmOut) return;
-
     const execute = async () => {
       await db.signOut();
       setCurrentUser(null);
@@ -455,7 +511,13 @@ export default function Home() {
       window.location.reload();
     };
 
-    triggerActionWith2FAGuard('sign_out', execute);
+    customConfirm(
+      '帳戶登出確認', 
+      '您確定要安全登出當前分身帳戶嗎？', 
+      () => {
+        triggerActionWith2FAGuard('sign_out', execute);
+      }
+    );
   };
 
   const handleResetAll = async () => {
@@ -834,8 +896,16 @@ export default function Home() {
                   onShare={(p) => setSelectedPostForShare(p)}
                   onDelete={handleDeletePost}
                   onDeleteComment={(commentId, executeDelete) => {
-                    triggerActionWith2FAGuard('delete_comment', executeDelete, commentId);
+                    customConfirm(
+                      '刪除留言確認', 
+                      '您確定要永久刪除這條回覆留言嗎？（※ 匿名回覆已實施物理隔離，無法刪除）', 
+                      () => {
+                        triggerActionWith2FAGuard('delete_comment', executeDelete, commentId);
+                      }
+                    );
                   }}
+                  showAlert={customAlert}
+                  showConfirm={customConfirm}
                 />
               ))
             ) : (
@@ -920,6 +990,8 @@ export default function Home() {
           onClose={() => setIsProfileModalOpen(false)}
           onSave={handleUpdateProfile}
           onResetAll={handleResetAll}
+          showAlert={customAlert}
+          showConfirm={customConfirm}
         />
       )}
 
@@ -1087,8 +1159,44 @@ export default function Home() {
         </div>
       )}
 
+      {/* 5. 脆風格自訂安全對話框 (Custom Dark Dialog Modal) */}
+      {customDialog.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 select-none animate-fade-in backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-xl bg-[#121212] border border-[#262626] p-6 space-y-5 shadow-2xl animate-scale-in text-center">
+            <div className="space-y-1.5">
+              <h3 className="text-sm font-bold text-white tracking-tight">
+                {customDialog.title}
+              </h3>
+            </div>
+            
+            <p className="text-xs text-neutral-400 leading-relaxed text-left bg-black/40 p-3.5 rounded-lg border border-[#202020]">
+              {customDialog.message}
+            </p>
+            
+            <div className="flex gap-2">
+              {customDialog.type === 'confirm' && (
+                <button
+                  type="button"
+                  onClick={customDialog.onCancel}
+                  className="flex-1 rounded-lg border border-[#262626] hover:bg-neutral-900 text-neutral-400 hover:text-white py-2 text-xs font-bold transition-all cursor-pointer"
+                >
+                  {customDialog.cancelText || '取消'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={customDialog.onConfirm}
+                className="flex-1 rounded-lg bg-white text-black hover:bg-neutral-200 py-2 text-xs font-bold transition-all cursor-pointer"
+              >
+                {customDialog.confirmText || '確定'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 頁尾 */}
-      <footer className="w-full border-t border-[#262626] py-6 text-center text-[10px] text-neutral-600 bg-black mt-12 flex-shrink-0">
+      <footer className="w-full border-t border-[#262626] py-6 text-center text-[10px] text-neutral-650 bg-black mt-12 flex-shrink-0">
         <p className="mb-2">© 2026 Opper Open Source Social Project. 脆風格公共話題審判與分身社交網站.</p>
         <p>
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white underline transition-colors">

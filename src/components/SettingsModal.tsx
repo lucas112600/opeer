@@ -26,6 +26,8 @@ interface SettingsModalProps {
   onClose: () => void;
   onSave: (updatedData: Partial<Profile>) => Promise<void>;
   onResetAll: () => void; // 清除快取並登出
+  showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
 }
 
 type TabType = 'basic' | 'privacy' | 'security';
@@ -36,8 +38,18 @@ export default function SettingsModal({
   onClose,
   onSave,
   onResetAll,
+  showAlert,
+  showConfirm,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('basic');
+
+  const alert = (message: string) => {
+    if (showAlert) {
+      showAlert('帳戶設定安全提示', message);
+    } else {
+      window.alert(message);
+    }
+  };
 
   // Basic info states
   const [username, setUsername] = useState<string>(currentUser.username);
@@ -663,9 +675,19 @@ export default function SettingsModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const confirmReset = window.confirm('這將徹底刪除瀏覽器快取中的所有貼文與投票紀錄，並登出帳戶。您確定要執行此操作嗎？');
-                        if (confirmReset) {
-                          onResetAll();
+                        if (showConfirm) {
+                          showConfirm(
+                            '清除本地資料確認',
+                            '這將徹底刪除瀏覽器快取中的所有貼文與投票紀錄，並登出帳戶。您確定要執行此操作嗎？',
+                            () => {
+                              onResetAll();
+                            }
+                          );
+                        } else {
+                          const confirmReset = window.confirm('這將徹底刪除瀏覽器快取中的所有貼文與投票紀錄，並登出帳戶。您確定要執行此操作嗎？');
+                          if (confirmReset) {
+                            onResetAll();
+                          }
                         }
                       }}
                       className="flex items-center gap-1 bg-rose-950/20 border border-rose-900/40 hover:bg-rose-900/30 text-rose-400 px-3 py-2 rounded text-[10px] font-bold transition-all flex-shrink-0"

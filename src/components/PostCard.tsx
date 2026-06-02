@@ -12,6 +12,8 @@ interface PostCardProps {
   onShare: (post: Post) => void;
   onDelete: (postId: string) => void;
   onDeleteComment?: (commentId: string, onSuccess: () => void) => void;
+  showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
+  showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
 }
 
 export default function PostCard({
@@ -22,7 +24,16 @@ export default function PostCard({
   onShare,
   onDelete,
   onDeleteComment,
+  showAlert,
+  showConfirm,
 }: PostCardProps) {
+  const alert = (message: string) => {
+    if (showAlert) {
+      showAlert('話題回覆提示', message);
+    } else {
+      window.alert(message);
+    }
+  };
   
   // 留言與回覆狀態
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -184,9 +195,15 @@ export default function PostCard({
     if (onDeleteComment) {
       onDeleteComment(commentId, executeDelete);
     } else {
-      const confirmDelete = window.confirm('確定要刪除這條回覆留言嗎？（匿名回覆已實施物理隔離，無法刪除）');
-      if (!confirmDelete) return;
-      await executeDelete();
+      if (showConfirm) {
+        showConfirm('刪除回覆確認', '確定要刪除這條回覆留言嗎？（※ 匿名回覆已實施物理隔離，無法刪除）', () => {
+          executeDelete();
+        });
+      } else {
+        const confirmDelete = window.confirm('確定要刪除這條回覆留言嗎？（匿名回覆已實施物理隔離，無法刪除）');
+        if (!confirmDelete) return;
+        executeDelete();
+      }
     }
   };
 
