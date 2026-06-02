@@ -60,61 +60,6 @@ export default function Home() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotificationsDrawer, setShowNotificationsDrawer] = useState<boolean>(false);
 
-  // 1. Check if Supabase is Configured
-  if (!isSupabaseConfigured) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7] p-6 text-center">
-        <div className="w-full max-w-md rounded-xl bg-[#121212] border border-[#262626] p-8 space-y-6 text-left shadow-2xl animate-scale-in">
-          {/* Header */}
-          <div className="flex items-center gap-3 border-b border-[#262626] pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#262626] bg-neutral-900">
-              <Terminal className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-black text-white uppercase tracking-wider">Opper 專案初始化守衛</h1>
-              <span className="text-[9px] text-neutral-500 block uppercase font-bold tracking-widest mt-0.5">Live Database Required</span>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-3.5 text-xs text-neutral-455 leading-relaxed">
-            <p>
-              為了落實<strong>「完全去 Mock 假資料與假帳號，100% 真實雲端串接」</strong>之專案指令，系統檢測到您的開發環境尚未配置真實的 Supabase 憑證。
-            </p>
-            <p>
-              請依照以下引導在本機配置環境變數，以順暢啟動線上分身社交系統：
-            </p>
-          </div>
-
-          {/* Guide Steps */}
-          <div className="space-y-4 bg-black p-4 rounded-lg border border-[#262626]">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第一步：建立設定檔</span>
-              <span className="text-[11px] text-white block">在專案根目錄下建立 <code className="text-amber-400 font-mono font-bold bg-neutral-900 px-1 py-0.5 rounded">.env.local</code> 檔案。</span>
-            </div>
-            <div className="space-y-1 border-t border-[#1f1f1f] pt-3">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第二步：寫入環境變數</span>
-              <pre className="text-[10px] font-mono text-emerald-400 bg-neutral-950 p-2.5 rounded border border-[#202020] block overflow-x-auto leading-relaxed select-text">
-{`NEXT_PUBLIC_SUPABASE_URL=您的_Supabase_專案網址
-NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
-              </pre>
-            </div>
-            <div className="space-y-1 border-t border-[#1f1f1f] pt-3">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase block tracking-wider">第三步：重啟伺服器</span>
-              <span className="text-[11px] text-neutral-400 block">儲存設定後，請重新執行開發伺服器：</span>
-              <code className="text-white font-mono font-bold bg-neutral-900 px-2 py-1 rounded text-[10px] inline-block mt-1">npm run dev</code>
-            </div>
-          </div>
-
-          {/* Footer Info */}
-          <div className="text-[9px] text-neutral-600 leading-relaxed pt-2 text-center border-t border-[#262626]">
-            本專案不提供 any LocalStorage 降級與本地假貼文模擬。配置憑證後將即刻從 Supabase 獲取實時數據！
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // 預設熱門話題標籤快捷列
   const hotTopics = [
     '#感情公審',
@@ -129,7 +74,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   // ----------------------------------------------------
 
   const fetchFeed = useCallback(async (tab: 'algorithm' | 'latest' | 'popular') => {
-    if (!isSupabaseConfigured) return;
     setIsDataLoading(true);
     try {
       const allPosts = await db.getPosts(tab);
@@ -154,7 +98,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   }, [currentUser]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!currentUser || !isSupabaseConfigured) return;
+    if (!currentUser) return;
     try {
       const list = await db.getNotifications(currentUser.id);
       setNotifications(list);
@@ -164,7 +108,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   }, [currentUser]);
 
   const handleGatekeeperAccept = async () => {
-    if (!isSupabaseConfigured) return;
     try {
       let user = await db.getCurrentUser();
       if (!user) {
@@ -541,6 +484,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
               </button>
             )}
           </section>
+
+          {/* 離線預覽狀態提示 */}
+          {!isSupabaseConfigured && (
+            <div className="text-[10px] text-neutral-500 font-medium px-2.5 py-1.5 rounded bg-[#121212] border border-[#262626]/40 flex items-center gap-1.5 leading-none w-fit">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <span>目前處於離線預覽模式。配置 .env.local 憑證即可自動連接至 Supabase 實時雲端資料庫。</span>
+            </div>
+          )}
 
           {/* 警告說明 */}
           {appError && (
