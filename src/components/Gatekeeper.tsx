@@ -51,8 +51,9 @@ export default function Gatekeeper({ onAccept }: GatekeeperProps) {
       >
         {/* Logo */}
         <div className="mb-6 flex justify-center flex-shrink-0">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#262626] bg-neutral-950">
-            <span className="text-xl font-black text-white">Op</span>
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#262626] bg-neutral-950 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Opper" className="h-full w-full object-cover" />
           </div>
         </div>
 

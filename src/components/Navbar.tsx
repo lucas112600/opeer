@@ -27,8 +27,9 @@ export default function Navbar({
         
         {/* Left Side: Minimalist Text Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-neutral-900">
-            <span className="text-sm font-black text-white">Op</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-neutral-900 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Opper" className="h-full w-full object-cover" />
           </div>
           <span className="text-sm font-black tracking-tight text-white">
             Opper
