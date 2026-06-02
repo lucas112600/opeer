@@ -12,9 +12,11 @@ import {
   Terminal,
   Lock,
   ShieldCheck,
-  X
+  X,
+  Bell,
+  Sparkles
 } from 'lucide-react';
-import { db, Profile, Post } from '../lib/db';
+import { db, Profile, Post, Notification } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
 
 import Gatekeeper from '../components/Gatekeeper';
@@ -37,10 +39,10 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // 排序狀態與投票對決
-  const [activeTab, setActiveTab] = useState<'latest' | 'popular'>('latest');
+  const [activeTab, setActiveTab] = useState<'algorithm' | 'latest' | 'popular'>('algorithm');
   const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
 
-  // 彈窗控制
+  // 彈窗與通知抽屜控制
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [selectedPostForShare, setSelectedPostForShare] = useState<Post | null>(null);
@@ -53,6 +55,10 @@ export default function Home() {
   const [show2FAVerifyModal, setShow2FAVerifyModal] = useState<boolean>(false);
   const [twoFAVerifyCode, setTwoFAVerifyCode] = useState<string>('');
   const [twoFAVerifyError, setTwoFAVerifyError] = useState<string>('');
+
+  // 即時通知中心狀態
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotificationsDrawer, setShowNotificationsDrawer] = useState<boolean>(false);
 
   // 1. Check if Supabase is Configured
   if (!isSupabaseConfigured) {
@@ -122,7 +128,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   // 1. 資料載入與帳號綁定
   // ----------------------------------------------------
 
-  const fetchFeed = useCallback(async (tab: 'latest' | 'popular') => {
+  const fetchFeed = useCallback(async (tab: 'algorithm' | 'latest' | 'popular') => {
     if (!isSupabaseConfigured) return;
     setIsDataLoading(true);
     try {
@@ -147,6 +153,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
     }
   }, [currentUser]);
 
+  const fetchNotifications = useCallback(async () => {
+    if (!currentUser || !isSupabaseConfigured) return;
+    try {
+      const list = await db.getNotifications(currentUser.id);
+      setNotifications(list);
+    } catch (err) {
+      console.error('獲取通知失敗：', err);
+    }
+  }, [currentUser]);
+
   const handleGatekeeperAccept = async () => {
     if (!isSupabaseConfigured) return;
     try {
@@ -163,8 +179,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   useEffect(() => {
     if (currentUser) {
       fetchFeed(activeTab);
+      fetchNotifications();
     }
-  }, [currentUser, activeTab, fetchFeed]);
+  }, [currentUser, activeTab, fetchFeed, fetchNotifications]);
 
   // ----------------------------------------------------
   // 2. 搜尋過濾
@@ -186,7 +203,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   }, [searchQuery, posts]);
 
   // ----------------------------------------------------
-  // 3. 2FA 敏感操作安全攔截器
+  // 3. 2FA 敏感操作安全攔截器與通知控制
   // ----------------------------------------------------
   const triggerActionWith2FAGuard = (
     type: PendingAction['type'],
@@ -237,6 +254,66 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
     }
   };
 
+  const handleToggleNotifications = () => {
+    setShowNotificationsDrawer(prev => {
+      const next = !prev;
+      if (next) {
+        fetchNotifications();
+      }
+      return next;
+    });
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!currentUser) return;
+    try {
+      await db.markAllNotificationsRead(currentUser.id);
+      await fetchNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleNotificationClick = (n: Notification) => {
+    setShowNotificationsDrawer(false);
+    // 預留流暢微延遲以利滑入特效順暢
+    setTimeout(() => {
+      const element = document.getElementById(`postcard-${n.post_id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 像素級高亮框線提醒特效，維持冷酷感
+        element.classList.add('highlight-flash');
+        setTimeout(() => {
+          element.classList.remove('highlight-flash');
+        }, 2000);
+      }
+    }, 300);
+  };
+
+  const getNotificationText = (type: Notification['type']) => {
+    switch (type) {
+      case 'vote_up': return '對您的話題投了 👍 挺你。';
+      case 'vote_down': return '對您的話題投了 👎 瞎爆。';
+      case 'comment': return '評論回覆了您的話題。';
+      case 'mention': return '在話題內容或回覆中提及標記了你。';
+      default: return '與您的話題進行了互動。';
+    }
+  };
+
+  const formatTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return '剛剛';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    return `${diffDays}d`;
+  };
+
   // ----------------------------------------------------
   // 4. 核心功能操作
   // ----------------------------------------------------
@@ -247,6 +324,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
       const newPost = await db.createPost(currentUser, content, topic, isAnonymous);
       setPosts(prev => [newPost, ...prev]);
       setIsPostModalOpen(false);
+      fetchNotifications();
     } catch (err) {
       console.error(err);
       alert('發表話題失敗。');
@@ -287,6 +365,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
         [postId]: result.userVote
       }));
 
+      fetchNotifications();
     } catch (err) {
       console.error(err);
     }
@@ -348,6 +427,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
         onEditProfile={() => setIsProfileModalOpen(true)}
         onNewPost={() => setIsPostModalOpen(true)}
         onSignOut={handleSignOut}
+        unreadNotificationsCount={notifications.filter(n => !n.is_read).length}
+        onToggleNotifications={handleToggleNotifications}
       />
 
       {/* 電腦 Web 專屬多欄式對齊版面 (最大寬度 1040px) */}
@@ -361,8 +442,19 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
             </span>
             <nav className="flex flex-col gap-1">
               <button 
+                onClick={() => { setActiveTab('algorithm'); setSearchQuery(''); }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === 'algorithm' && !searchQuery
+                    ? 'bg-neutral-900 text-white' 
+                    : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-neutral-350" />
+                <span>演算法推播</span>
+              </button>
+              <button 
                 onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === 'latest' && !searchQuery
                     ? 'bg-neutral-900 text-white' 
                     : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
@@ -373,7 +465,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
               </button>
               <button 
                 onClick={() => { setActiveTab('popular'); setSearchQuery(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === 'popular' && !searchQuery
                     ? 'bg-neutral-900 text-white' 
                     : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
@@ -382,6 +474,15 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
                 <Flame className="h-3.5 w-3.5" />
                 <span>熱門公審</span>
               </button>
+              <a 
+                href="/docs" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-neutral-400 hover:bg-neutral-955 hover:text-white transition-colors"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+                <span>使用規範與 API</span>
+              </a>
             </nav>
           </div>
 
@@ -451,14 +552,25 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
 
           {/* 移動端分頁分欄快捷切換 (僅於窄螢幕顯示) */}
           <section className="flex items-center justify-between border-b border-[#262626] pb-2 md:hidden">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 overflow-x-auto">
+              <button
+                id="tab-algorithm"
+                onClick={() => { setActiveTab('algorithm'); setSearchQuery(''); }}
+                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
+                  activeTab === 'algorithm' && !searchQuery
+                    ? 'text-white border-white'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                }`}
+              >
+                演算法推播
+              </button>
               <button
                 id="tab-latest"
                 onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}
-                className={`pb-2 text-xs font-black transition-all border-b-2 ${
+                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
                   activeTab === 'latest' && !searchQuery
                     ? 'text-white border-white'
-                    : 'text-neutral-500 border-transparent hover:text-neutral-350'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
                 }`}
               >
                 最新發表
@@ -466,16 +578,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
               <button
                 id="tab-popular"
                 onClick={() => { setActiveTab('popular'); setSearchQuery(''); }}
-                className={`pb-2 text-xs font-black transition-all border-b-2 ${
+                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
                   activeTab === 'popular' && !searchQuery
                     ? 'text-white border-white'
-                    : 'text-neutral-500 border-transparent hover:text-neutral-350'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
                 }`}
               >
                 熱門公審
               </button>
             </div>
-            <div className="text-[10px] text-neutral-500">
+            <div className="text-[10px] text-neutral-500 flex-shrink-0 pl-2">
               共 {filteredPosts.length} 篇
             </div>
           </section>
@@ -535,7 +647,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
                   className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-bold border transition-colors truncate block cursor-pointer ${
                     searchQuery === topic
                       ? 'bg-white text-black border-white'
-                      : 'bg-black border-[#262626] text-neutral-400 hover:text-white hover:bg-neutral-950'
+                      : 'bg-black border-[#262626] text-neutral-400 hover:text-white hover:bg-neutral-955'
                   }`}
                 >
                   {topic}
@@ -609,7 +721,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
               <button
                 type="button"
                 onClick={handleCancel2FA}
-                className="rounded-lg p-1 text-neutral-400 hover:text-white hover:bg-neutral-850 transition-colors"
+                className="rounded-lg p-1 text-neutral-400 hover:text-white hover:bg-neutral-855 transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -650,7 +762,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
                 <button
                   type="button"
                   onClick={handleCancel2FA}
-                  className="flex-1 rounded-lg bg-neutral-900 border border-[#262626] text-neutral-400 py-2 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors"
+                  className="flex-1 rounded-lg bg-neutral-900 border border-[#262626] text-neutral-400 py-2 text-xs font-bold hover:bg-neutral-855 hover:text-white transition-colors"
                 >
                   取消
                 </button>
@@ -666,9 +778,99 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
         </div>
       )}
 
+      {/* 右側抽屜式即時通知中心 Drawer */}
+      {showNotificationsDrawer && currentUser && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setShowNotificationsDrawer(false)} />
+          <div className="relative w-full max-w-xs h-full bg-[#121212] border-l border-[#262626] p-6 shadow-2xl animate-slide-left flex flex-col">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#262626] pb-4 mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-white" />
+                <span className="text-xs font-bold text-white">即時通知中心</span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {notifications.some(n => !n.is_read) && (
+                  <button
+                    onClick={handleMarkAllNotificationsRead}
+                    className="text-[9px] font-bold text-neutral-300 hover:text-white px-2 py-1 rounded bg-neutral-900 border border-[#262626] transition-colors cursor-pointer"
+                  >
+                    全部已讀
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNotificationsDrawer(false)}
+                  className="text-neutral-450 hover:text-white p-1 rounded hover:bg-neutral-900 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-3">
+              {notifications.length > 0 ? (
+                notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`flex gap-3 p-3 rounded-lg border transition-all cursor-pointer text-left relative ${
+                      n.is_read
+                        ? 'bg-black/20 border-[#1c1c1c] text-neutral-400 hover:bg-neutral-900/30'
+                        : 'bg-neutral-900/40 border-[#262626] text-white hover:bg-neutral-850/40 shadow-sm'
+                    }`}
+                  >
+                    {!n.is_read && (
+                      <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                    )}
+                    
+                    <div className="relative h-7 w-7 overflow-hidden rounded-full border border-[#262626] bg-neutral-950 flex-shrink-0">
+                      <img
+                        src={n.sender_avatar}
+                        alt={n.sender_username}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-[10px] leading-relaxed break-words pr-1">
+                        <span className="font-bold text-neutral-200">@{n.sender_username}</span>{' '}
+                        {getNotificationText(n.type)}
+                      </p>
+                      <span className="text-[8px] text-neutral-600 block">
+                        {formatTime(n.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-24 text-[10px] text-neutral-650 space-y-3">
+                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-950 border border-[#262626] text-neutral-600">
+                    <Bell className="h-4.5 w-4.5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-neutral-500">目前尚無通知</h4>
+                    <p className="text-[9px] text-neutral-650 leading-relaxed max-w-[180px] mx-auto mt-1">
+                      當其他使用者對您發表的話題投票、評論留言，或提及您的帳號時，通知將會即時顯示在此。
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* 頁尾 */}
       <footer className="w-full border-t border-[#262626] py-6 text-center text-[10px] text-neutral-600 bg-black mt-12 flex-shrink-0">
-        <p>© 2026 Opper Open Source Social Project. 脆風格公共話題審判與分身社交網站.</p>
+        <p className="mb-2">© 2026 Opper Open Source Social Project. 脆風格公共話題審判與分身社交網站.</p>
+        <p>
+          <a href="/docs" target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white underline transition-colors">
+            使用規範漢文檔、資料庫開源 Schema 與開發者 API 參考文檔
+          </a>
+        </p>
       </footer>
 
     </div>

@@ -179,6 +179,15 @@ export default function PostCard({
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
+              {post.algorithm_score !== undefined && (
+                <span 
+                  className="text-[9px] text-neutral-500 bg-neutral-900 border border-[#202020] px-1.5 py-0.5 rounded flex items-center gap-1 font-mono tracking-tight mr-1"
+                  title="演算法熱度分值 = ((挺你*1.5) - (瞎爆*0.5) + (留言數*3.0) + 10) / (小時+2)^1.2"
+                >
+                  <span>✨ 熱度</span>
+                  <span className="font-bold text-neutral-300">{post.algorithm_score.toFixed(1)}</span>
+                </span>
+              )}
               <span className="text-[10px] text-neutral-500">
                 {formatTime(post.created_at)}
               </span>

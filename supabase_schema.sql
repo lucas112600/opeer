@@ -178,3 +178,37 @@ CREATE POLICY "允許登入使用者發表話題留言"
 CREATE POLICY "僅允許發表者刪除自己非匿名之話題留言" 
     ON public.comments FOR DELETE 
     USING (is_anonymous = false AND auth.uid() = author_id);
+
+
+-- 6. 建立通知記錄表 (Notifications)
+CREATE TABLE public.notifications (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    recipient_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL, -- 接收通知的使用者
+    sender_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,           -- 觸發通知的使用者，匿名發文或匿名投票時可為 NULL
+    sender_username TEXT NOT NULL,                                              -- 觸發者帳號 (真實 username 或 "anonymous")
+    sender_avatar TEXT NOT NULL,                                                -- 觸發者頭像 URL
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,        -- 關聯的話題貼文
+    type TEXT CHECK (type IN ('vote_up', 'vote_down', 'comment', 'mention')) NOT NULL, -- 通知類型
+    is_read BOOLEAN DEFAULT false NOT NULL,                                     -- 是否已讀
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 啟用 Notifications 行級安全政策 (RLS)
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Notifications 的 RLS 政策
+-- 1. 允許所有人插入通知，以便其他使用者在投票、留言、@提及時寫入通知
+CREATE POLICY "允許所有人建立通知"
+    ON public.notifications FOR INSERT
+    WITH CHECK (true);
+
+-- 2. 僅允許接收者本人讀取自己的通知
+CREATE POLICY "僅允許接收者本人讀取自己的通知"
+    ON public.notifications FOR SELECT
+    USING (auth.uid() = recipient_id);
+
+-- 3. 僅允許接收者本人更新自己的通知狀態 (如標記已讀)
+CREATE POLICY "僅允許接收者本人更新自己的通知狀態"
+    ON public.notifications FOR UPDATE
+    USING (auth.uid() = recipient_id)
+    WITH CHECK (auth.uid() = recipient_id);

@@ -25,6 +25,7 @@ export interface Post {
   downvotes: number;
   has_sensitive_content: boolean; // 是否包含敏感爭議話題
   created_at: string;
+  algorithm_score?: number; // 智慧推薦熱度分數
 }
 
 export interface Vote {
@@ -45,6 +46,18 @@ export interface Comment {
   author_avatar: string;
   content: string;
   has_sensitive_content: boolean; // 是否包含敏感話題內容
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  recipient_id: string;
+  sender_id: string | null;
+  sender_username: string;
+  sender_avatar: string;
+  post_id: string;
+  type: 'vote_up' | 'vote_down' | 'comment' | 'mention';
+  is_read: boolean;
   created_at: string;
 }
 
@@ -184,17 +197,39 @@ export const db = {
   // --- 串文話題管理 ---
   
   // 獲取線上所有話題發文
-  getPosts: async (orderBy: 'latest' | 'popular' = 'latest'): Promise<Post[]> => {
-    let query = supabase.from('posts').select('*');
-    if (orderBy === 'latest') {
-      query = query.order('created_at', { ascending: false });
-    } else {
-      // 熱門排序：挺他 + 瞎爆 票數合計降序
-      query = query.order('upvotes', { ascending: false });
-    }
-    const { data, error } = await query;
+  getPosts: async (orderBy: 'latest' | 'popular' | 'algorithm' = 'latest'): Promise<Post[]> => {
+    // 透過 comments(id) 關聯載入以統計每篇貼文的真實留言數量
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, comments(id)');
+      
     if (error) throw error;
-    return data as Post[];
+    
+    // 計算每篇貼文的演算法熱度分數
+    const postsWithScores = (data || []).map((p: any) => {
+      const hoursPassed = (Date.now() - new Date(p.created_at).getTime()) / 3600000;
+      const commentCount = p.comments?.length || 0;
+      
+      // 動態演算法熱度公式：
+      // 分數 = ((挺你票 * 1.5) - (瞎爆票 * 0.5) + (留言數 * 3.0) + 10) / (時間差 + 2)^1.2
+      const score = ((p.upvotes * 1.5) - (p.downvotes * 0.5) + (commentCount * 3.0) + 10) / Math.pow(hoursPassed + 2, 1.2);
+      
+      return {
+        ...p,
+        algorithm_score: score,
+      } as Post;
+    });
+
+    // 進行排序
+    if (orderBy === 'latest') {
+      return postsWithScores.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (orderBy === 'popular') {
+      // 熱門排序：挺他 + 瞎爆 票數合計降序
+      return postsWithScores.sort((a, b) => (b.upvotes + b.downvotes) - (a.upvotes + a.downvotes));
+    } else {
+      // 智慧推薦排序：依演算法推播分數降序排列
+      return postsWithScores.sort((a, b) => (b.algorithm_score || 0) - (a.algorithm_score || 0));
+    }
   },
 
   // 發表話題
@@ -238,6 +273,10 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
+
+    // 解析貼文主文中的 @提及 並寫入通知列
+    await db.createMentionNotifications(content, isAnonymous ? null : author, data.id);
+
     return data as Post;
   },
 
@@ -303,8 +342,13 @@ export const db = {
       else downDiff = 1;
     }
 
-    // 獲取最新票數計數
-    const { data: currentPost } = await supabase.from('posts').select('upvotes, downvotes').eq('id', postId).single();
+    // 獲取最新票數計數與話題作者
+    const { data: currentPost } = await supabase
+      .from('posts')
+      .select('upvotes, downvotes, author_id')
+      .eq('id', postId)
+      .single();
+
     const newUp = Math.max(0, (currentPost?.upvotes || 0) + upDiff);
     const newDown = Math.max(0, (currentPost?.downvotes || 0) + downDiff);
 
@@ -314,6 +358,24 @@ export const db = {
       .eq('id', postId)
       .select('upvotes, downvotes')
       .single();
+
+    // 若為新投票、話題作者非匿名、且投票者已登入，寫入即時通知
+    if (!existingVote && currentPost?.author_id && userId) {
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (senderProfile) {
+        await db.createNotification(
+          currentPost.author_id,
+          senderProfile as Profile,
+          postId,
+          voteType === 'up' ? 'vote_up' : 'vote_down'
+        );
+      }
+    }
 
     return {
       upvotes: updatedPost?.upvotes || 0,
@@ -387,6 +449,26 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
+
+    // 獲取話題作者資訊並寫入即時通知
+    const { data: postData } = await supabase
+      .from('posts')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+
+    if (postData?.author_id) {
+      await db.createNotification(
+        postData.author_id,
+        isAnonymous ? null : author,
+        postId,
+        'comment'
+      );
+    }
+
+    // 解析留言內容中的 @提及 並寫入通知列
+    await db.createMentionNotifications(content, isAnonymous ? null : author, postId);
+
     return data as Comment;
   },
 
@@ -398,5 +480,93 @@ export const db = {
       .eq('id', commentId)
       .eq('author_id', userId);
     if (error) throw error;
+  },
+
+  // --- 即時通知中心管理 ---
+
+  // 獲取使用者所有的通知列
+  getNotifications: async (userId: string): Promise<Notification[]> => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('recipient_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Notification[];
+  },
+
+  // 將某個用戶的所有通知標記為已讀
+  markAllNotificationsRead: async (userId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('recipient_id', userId);
+    if (error) throw error;
+  },
+
+  // 建立通知
+  createNotification: async (
+    recipientId: string,
+    sender: Profile | null,
+    postId: string,
+    type: Notification['type']
+  ): Promise<void> => {
+    // 若觸發者與接收者是同一個人，不需要產生通知列
+    if (sender && sender.id === recipientId) return;
+
+    const notificationData = {
+      recipient_id: recipientId,
+      sender_id: sender ? sender.id : null,
+      sender_username: sender ? sender.username : ANONYMOUS_OWL.username,
+      sender_avatar: sender ? sender.avatar_url : ANONYMOUS_OWL.avatar_url,
+      post_id: postId,
+      type: type,
+      is_read: false
+    };
+
+    const { error } = await supabase
+      .from('notifications')
+      .insert([notificationData]);
+    // 寫入通知失敗時在背景靜態印出 log 即可，不影響核心發帖或投票流程
+    if (error) {
+      console.error('寫入通知失敗：', error);
+    }
+  },
+
+  // 解析內容中的 @提及 並建立通知
+  createMentionNotifications: async (
+    content: string,
+    sender: Profile | null,
+    postId: string
+  ): Promise<void> => {
+    try {
+      const mentionRegex = /(?:^|\s)@([a-z0-9_]+)/gi;
+      const matches = content.match(mentionRegex) || [];
+      const mentionedUsernames = Array.from(
+        new Set(matches.map(m => m.trim().substring(1).toLowerCase()))
+      );
+
+      if (mentionedUsernames.length === 0) return;
+
+      for (const username of mentionedUsernames) {
+        const { data: recipient } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+
+        // 僅當被提及使用者存在且為公開帳戶時，才寫入提及通知
+        if (recipient && recipient.is_public !== false) {
+          await db.createNotification(
+            recipient.id,
+            sender,
+            postId,
+            'mention'
+          );
+        }
+      }
+    } catch (err) {
+      console.error('建立提及通知失敗：', err);
+    }
   }
 };
