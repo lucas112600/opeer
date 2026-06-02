@@ -83,11 +83,16 @@ export const db = {
 
   // 登入/註冊帳戶（採用標準 Supabase 匿名登入安全機制）
   loginOrCreateAccount: async (username?: string, fullName?: string): Promise<Profile> => {
-    // 呼叫真實 Supabase 匿名登入 ( signInAnonymously )
-    const { data: { session }, error: authError } = await supabase.auth.signInAnonymously();
-    if (authError || !session) throw authError || new Error('真實 Supabase 匿名登入失敗');
-    
-    const userId = session.user.id;
+    // 優先檢查當前是否已存在真實 Session 憑證，避免重複建立匿名帳戶
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    let userId = currentUser?.id;
+
+    if (!userId) {
+      // 呼叫真實 Supabase 匿名登入 ( signInAnonymously )
+      const { data: { session }, error: authError } = await supabase.auth.signInAnonymously();
+      if (authError || !session) throw authError || new Error('真實 Supabase 匿名登入失敗');
+      userId = session.user.id;
+    }
 
     // 嘗試撈取由線上 Trigger 自動建立的 profiles 檔案
     const { data, error } = await supabase
