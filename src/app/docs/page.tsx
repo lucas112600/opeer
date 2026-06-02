@@ -563,7 +563,7 @@ author_name = "匿名使用者"`}
 
       {/* 頁尾 */}
       <footer className="w-full border-t border-[#262626] py-8 text-center text-[10px] text-neutral-600 bg-black mt-20 flex-shrink-0">
-        <p className="mb-2">© 2026 Opeer Open Source Initiative by Lucas Wang. 脆風格公共話題審判與分身社交網絡.</p>
+        <p className="mb-2">© 2026 opper.</p>
         <p className="text-neutral-500">本文件使用漢文 (繁體中文) 編譯，採用 MIT Open Source License 對外授權架構.</p>
       </footer>
 

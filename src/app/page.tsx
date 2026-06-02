@@ -1191,7 +1191,7 @@ export default function Home() {
 
       {/* 頁尾 */}
       <footer className="w-full border-t border-[#262626] py-6 text-center text-[10px] text-neutral-650 bg-black mt-12 flex-shrink-0">
-        <p className="mb-2">© 2026 Opper Open Source Social Project. 脆風格公共話題審判與分身社交網站.</p>
+        <p className="mb-2">© 2026 opper.</p>
         <p>
           <a href="/docs" target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-white underline transition-colors">
             使用規範漢文檔、資料庫開源 Schema 與開發者 API 參考文檔
