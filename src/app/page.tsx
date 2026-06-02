@@ -74,14 +74,33 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
 
-  // 預設熱門話題標籤快捷列
-  const hotTopics = [
-    '#感情公審',
-    '#微辣AA制',
-    '#職場黑幕',
-    '#兩性關係',
-    '#職場八卦'
-  ];
+  // 動態熱門話題標籤快捷列（自動彙整真實貼文標籤，降序排列）
+  const hotTopics = (() => {
+    const counts: Record<string, number> = {};
+    posts.forEach(p => {
+      if (p.topic && p.topic.startsWith('#')) {
+        const t = p.topic.trim();
+        counts[t] = (counts[t] || 0) + 1;
+      }
+    });
+    
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(entry => entry[0]);
+      
+    if (sorted.length > 0) {
+      return sorted.slice(0, 5);
+    }
+    
+    // 當資料庫暫無話題時的預設備用標籤
+    return [
+      '#感情公審',
+      '#微辣AA制',
+      '#職場黑幕',
+      '#兩性關係',
+      '#職場八卦'
+    ];
+  })();
 
   // ----------------------------------------------------
   // 1. 資料載入與帳號綁定
