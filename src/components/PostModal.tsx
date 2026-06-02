@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Globe, EyeOff, AlertCircle } from 'lucide-react';
+import { X, Globe, EyeOff, AlertCircle, Image, Trash2 } from 'lucide-react';
 import { Profile, ANONYMOUS_OWL, db } from '../lib/db';
 
 interface PostModalProps {
   currentUser: Profile;
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (content: string, topic: string, isAnonymous: boolean) => Promise<void>;
+  onSubmit: (content: string, topic: string, isAnonymous: boolean, imageUrl?: string) => Promise<void>;
 }
 
 export default function PostModal({
@@ -20,10 +20,35 @@ export default function PostModal({
   const [content, setContent] = useState<string>('');
   const [topic, setTopic] = useState<string>('');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   if (!isOpen) return null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg('照片大小不能超過 5MB。');
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImageUrl(reader.result as string);
+      setIsUploading(false);
+      setErrorMsg('');
+    };
+    reader.onerror = () => {
+      setErrorMsg('照片讀取失敗。');
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,9 +84,10 @@ export default function PostModal({
       const cleanTopic = topic.trim();
       const finalTopic = cleanTopic.startsWith('#') ? cleanTopic : `#${cleanTopic}`;
       
-      await onSubmit(content.trim(), finalTopic, isAnonymous);
+      await onSubmit(content.trim(), finalTopic, isAnonymous, imageUrl || undefined);
       setContent('');
       setTopic('');
+      setImageUrl('');
       setIsAnonymous(false);
       setErrorMsg('');
       onClose();
@@ -168,6 +194,67 @@ export default function PostModal({
               placeholder="輸入您想發布的話題主文，大眾將對其進行 👍 / 👎 投票表態..."
               className="w-full flex-1 rounded-lg bg-black border border-[#262626] text-xs text-white px-3.5 py-2.5 focus:border-white focus:outline-none transition-colors resize-none overflow-y-auto"
             />
+          </div>
+
+          {/* 話題相片附件區 */}
+          <div className="flex-shrink-0 space-y-2">
+            <label className="block text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+              話題照片附件 (Image Attachment)
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {/* 網址貼上 */}
+              <input
+                type="text"
+                value={imageUrl.startsWith('data:') ? '' : imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                disabled={imageUrl.startsWith('data:')}
+                placeholder={imageUrl.startsWith('data:') ? "已載入本機轉換相片..." : "輸入外部圖片網址 (如: https://...)"}
+                className="flex-1 rounded-lg bg-black border border-[#262626] text-xs text-white px-3 py-2 focus:border-white focus:outline-none disabled:opacity-40 transition-colors"
+              />
+              
+              {/* 檔案上傳按鈕 */}
+              <label className="relative flex items-center justify-center gap-1.5 rounded-lg bg-neutral-900 border border-[#262626] hover:bg-neutral-850 hover:text-white text-neutral-400 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer select-none">
+                <Image className="h-3.5 w-3.5" />
+                <span>{isUploading ? '讀取中...' : '選擇本地照片'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  disabled={isUploading}
+                />
+              </label>
+            </div>
+
+            {/* 實時相片預覽卡片 */}
+            {imageUrl && (
+              <div className="relative mt-2 rounded-lg border border-[#262626] bg-black p-2 flex items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-10 w-10 rounded overflow-hidden border border-[#202020] bg-neutral-950 flex-shrink-0 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imageUrl}
+                      alt="相片預覽"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-bold text-neutral-300 block truncate">已成功掛載照片附件</span>
+                    <span className="text-[8px] text-neutral-500 block truncate font-mono">
+                      {imageUrl.startsWith('data:') ? `Base64 資料串 (${Math.round(imageUrl.length / 1024)} KB)` : imageUrl}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setImageUrl('')}
+                  className="rounded p-1 text-neutral-500 hover:text-rose-455 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  title="移除附圖"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Dual-Track Anonymity Switch */}

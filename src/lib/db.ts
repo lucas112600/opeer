@@ -26,6 +26,7 @@ export interface Post {
   has_sensitive_content: boolean; // 是否包含敏感爭議話題
   created_at: string;
   algorithm_score?: number; // 智慧推薦熱度分數
+  image_url?: string | null; // 話題附加照片網址或 Base64 字串
 }
 
 export interface Vote {
@@ -237,7 +238,8 @@ export const db = {
     author: Profile, 
     content: string, 
     topic: string, 
-    isAnonymous: boolean
+    isAnonymous: boolean,
+    imageUrl?: string
   ): Promise<Post> => {
     const formattedTopic = topic.startsWith('#') ? topic.trim() : `#${topic.trim()}`;
     
@@ -246,26 +248,28 @@ export const db = {
 
     // 匿名發文「物理隔離」資料建構
     const postData = isAnonymous
-      ? {
-          author_id: null, // 資料庫中完全清除 user_id，杜絕實體追蹤
-          is_anonymous: true,
-          author_username: ANONYMOUS_OWL.username,
-          author_name: ANONYMOUS_OWL.full_name,
-          author_avatar: ANONYMOUS_OWL.avatar_url,
-          topic: formattedTopic,
-          content: content,
-          has_sensitive_content: hasSensitive,
-        }
-      : {
-          author_id: author.id,
-          is_anonymous: false,
-          author_username: author.username,
-          author_name: author.full_name,
-          author_avatar: author.avatar_url,
-          topic: formattedTopic,
-          content: content,
-          has_sensitive_content: hasSensitive,
-        };
+       ? {
+           author_id: null, // 資料庫中完全清除 user_id，杜絕實體追蹤
+           is_anonymous: true,
+           author_username: ANONYMOUS_OWL.username,
+           author_name: ANONYMOUS_OWL.full_name,
+           author_avatar: ANONYMOUS_OWL.avatar_url,
+           topic: formattedTopic,
+           content: content,
+           has_sensitive_content: hasSensitive,
+           image_url: imageUrl || null,
+         }
+       : {
+           author_id: author.id,
+           is_anonymous: false,
+           author_username: author.username,
+           author_name: author.full_name,
+           author_avatar: author.avatar_url,
+           topic: formattedTopic,
+           content: content,
+           has_sensitive_content: hasSensitive,
+           image_url: imageUrl || null,
+         };
 
     const { data, error } = await supabase
       .from('posts')

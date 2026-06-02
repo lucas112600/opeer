@@ -241,6 +241,18 @@ export default function PostCard({
               <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-4 select-text">
                 {post.content}
               </p>
+
+              {/* 話題相片 */}
+              {post.image_url && (
+                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden border border-[#262626] bg-neutral-950 max-h-[360px] flex items-center justify-center animate-fade-in">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={post.image_url}
+                    alt="話題相片"
+                    className="w-full h-full object-contain max-h-[360px]"
+                  />
+                </div>
+              )}
             </>
           )}
 

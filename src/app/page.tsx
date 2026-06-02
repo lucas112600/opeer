@@ -318,10 +318,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   // 4. 核心功能操作
   // ----------------------------------------------------
 
-  const handleCreatePost = async (content: string, topic: string, isAnonymous: boolean) => {
+  const handleCreatePost = async (content: string, topic: string, isAnonymous: boolean, imageUrl?: string) => {
     if (!currentUser) return;
     try {
-      const newPost = await db.createPost(currentUser, content, topic, isAnonymous);
+      const newPost = await db.createPost(currentUser, content, topic, isAnonymous, imageUrl);
       setPosts(prev => [newPost, ...prev]);
       setIsPostModalOpen(false);
       fetchNotifications();
