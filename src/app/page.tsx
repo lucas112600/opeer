@@ -19,7 +19,7 @@ import {
 import { db, Profile, Post, Notification } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
 
-import Gatekeeper from '../components/Gatekeeper';
+
 import Navbar from '../components/Navbar';
 import PostCard from '../components/PostCard';
 import PostModal from '../components/PostModal';
@@ -107,17 +107,23 @@ export default function Home() {
     }
   }, [currentUser]);
 
-  const handleGatekeeperAccept = async () => {
-    try {
-      let user = await db.getCurrentUser();
-      if (!user) {
-        user = await db.loginOrCreateAccount();
+  // 自動在進入頁面時進行初始化，免除使用者手動點擊同意使用條款的阻擋
+  useEffect(() => {
+    const autoInit = async () => {
+      try {
+        let user = await db.getCurrentUser();
+        if (!user) {
+          user = await db.loginOrCreateAccount();
+        }
+        setCurrentUser(user);
+      } catch (err) {
+        console.error('自動登入初始化失敗：', err);
+        // 若初始化有延遲，手動載入話題牆
+        fetchFeed(activeTab);
       }
-      setCurrentUser(user);
-    } catch (err) {
-      console.error('登入初始化失敗：', err);
-    }
-  };
+    };
+    autoInit();
+  }, [activeTab, fetchFeed]);
 
   useEffect(() => {
     if (currentUser) {
@@ -361,8 +367,6 @@ export default function Home() {
   return (
     <div className="flex flex-col flex-1 min-h-screen bg-black text-[#f3f5f7]">
       
-      {/* 進入同意書 */}
-      <Gatekeeper onAccept={handleGatekeeperAccept} />
 
       {/* 導覽列 */}
       <Navbar 
