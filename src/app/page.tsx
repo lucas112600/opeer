@@ -21,7 +21,7 @@ import {
   User
 } from 'lucide-react';
 import { db, Profile, Post, Notification } from '../lib/db';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 
 import Navbar from '../components/Navbar';
@@ -209,19 +209,60 @@ export default function Home() {
     }
   };
 
-  const handleVerify2FAForAction = (e: React.FormEvent) => {
+  const handleVerify2FAForAction = async (e: React.FormEvent) => {
     e.preventDefault();
     setTwoFAVerifyError('');
 
-    if (twoFAVerifyCode.trim() === '123456') {
+    if (!twoFAVerifyCode || twoFAVerifyCode.trim().length !== 6) {
+      setTwoFAVerifyError('請輸入完整的 6 位數安全驗證碼。');
+      return;
+    }
+
+    try {
+      // 1. 取得使用者已驗證的 2FA 因子列表
+      const { data: factorsData, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) throw listError;
+
+      const totpFactor = factorsData.totp.find(f => f.status === 'verified');
+      if (!totpFactor) {
+        // 如果資料庫啟用但 Supabase 端查無 verified 因子，則容錯放行
+        if (pendingAction) {
+          pendingAction.execute();
+        }
+        setShow2FAVerifyModal(false);
+        setPendingAction(null);
+        setTwoFAVerifyCode('');
+        return;
+      }
+
+      // 2. 挑戰 (Challenge) 該因子以確認認證回合
+      const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: totpFactor.id
+      });
+      if (challengeError) throw challengeError;
+
+      // 3. 驗證 (Verify) 安全碼
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: totpFactor.id,
+        challengeId: challengeData.id,
+        code: twoFAVerifyCode.trim()
+      });
+
+      if (verifyError) {
+        setTwoFAVerifyError('驗證碼不正確，請輸入您驗證 App 產生的最新安全碼。');
+        return;
+      }
+
+      // 驗證成功，執行待處理之敏感操作
       if (pendingAction) {
         pendingAction.execute();
       }
       setShow2FAVerifyModal(false);
       setPendingAction(null);
       setTwoFAVerifyCode('');
-    } else {
-      setTwoFAVerifyError('安全驗證碼不正確。請輸入預設雙重驗證碼 123456');
+    } catch (err: any) {
+      console.error('2FA 驗證失敗：', err);
+      setTwoFAVerifyError(err.message || '安全驗證過程出錯，請稍後重試。');
     }
   };
 
@@ -897,7 +938,7 @@ export default function Home() {
                 為了保障您的帳戶安全，執行敏感操作<strong>「{getActionNameInChinese(pendingAction.type)}」</strong>前，必須通過雙重身份安全校驗。
               </p>
               <p className="text-[10px] text-neutral-500">
-                請輸入您的 6 位數安全驗證碼以確認授權（請輸入預設安全碼 <code className="text-white bg-neutral-900 px-1 rounded font-bold">123456</code> 以放行）：
+                請開啟您手機上的驗證器 App（如 Google Authenticator），並在下方輸入對應的 6 位數安全驗證碼以確認授權放行：
               </p>
             </div>
 

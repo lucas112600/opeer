@@ -61,6 +61,9 @@ export default function SettingsModal({
   const [totpCode, setTotpCode] = useState<string>('');
   const [totpError, setTotpError] = useState<string>('');
   const [isActivating2FA, setIsActivating2FA] = useState<boolean>(true); // true = setup, false = turn off
+  const [totpQrCode, setTotpQrCode] = useState<string>('');
+  const [totpSecret, setTotpSecret] = useState<string>('');
+  const [totpFactorId, setTotpFactorId] = useState<string>('');
 
   // Login activity states
   const [isSigningOutOthers, setIsSigningOutOthers] = useState<boolean>(false);
@@ -79,32 +82,127 @@ export default function SettingsModal({
     setAvatarUrl(newAvatar);
   };
 
-  const handleToggle2FA = () => {
+  const handleToggle2FA = async () => {
+    setTotpError('');
+    setTotpCode('');
+    
     if (!twoFactorEnabled) {
-      // Prompt setup form
       setIsActivating2FA(true);
-      setTotpCode('');
-      setTotpError('');
-      setShow2FAConfig(true);
+      try {
+        const { data, error } = await supabase.auth.mfa.enroll({
+          factorType: 'totp',
+          friendlyName: 'Opper Authenticator'
+        });
+        
+        if (error) throw error;
+        
+        setTotpFactorId(data.id);
+        setTotpQrCode(data.totp.qr_code);
+        setTotpSecret(data.totp.secret);
+        setShow2FAConfig(true);
+      } catch (err: any) {
+        console.error(err);
+        alert('初始化 2FA 設定失敗，請確認網路連線是否正常。');
+      }
     } else {
-      // Prompt turn off form
       setIsActivating2FA(false);
-      setTotpCode('');
-      setTotpError('');
-      setShow2FAConfig(true);
+      try {
+        const { data, error } = await supabase.auth.mfa.listFactors();
+        if (error) throw error;
+        
+        const verifiedFactor = data.totp.find(f => f.status === 'verified');
+        if (!verifiedFactor) {
+          setTwoFactorEnabled(false);
+          return;
+        }
+        
+        setTotpFactorId(verifiedFactor.id);
+        setShow2FAConfig(true);
+      } catch (err: any) {
+        console.error(err);
+        alert('取得驗證資訊失敗，請稍後再試。');
+      }
     }
   };
 
-  const handleVerify2FA = (e: React.FormEvent) => {
+  const handleClose2FAConfig = async () => {
+    setShow2FAConfig(false);
+    setTotpCode('');
+    setTotpError('');
+    
+    if (isActivating2FA && totpFactorId) {
+      try {
+        await supabase.auth.mfa.unenroll({ factorId: totpFactorId });
+      } catch (err) {
+        console.error('Cleanup unverified factor failed:', err);
+      }
+    }
+    setTotpFactorId('');
+    setTotpQrCode('');
+    setTotpSecret('');
+  };
+
+  const handleVerify2FA = async (e: React.FormEvent) => {
     e.preventDefault();
     setTotpError('');
 
-    if (totpCode.trim() === '123456') {
-      setTwoFactorEnabled(isActivating2FA);
-      setShow2FAConfig(false);
-      setTotpCode('');
-    } else {
-      setTotpError('驗證碼不正確。請輸入預設安全驗證碼 123456');
+    if (!totpCode || totpCode.trim().length !== 6) {
+      setTotpError('請輸入完整的 6 位數安全驗證碼。');
+      return;
+    }
+
+    try {
+      if (isActivating2FA) {
+        const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+          factorId: totpFactorId
+        });
+        if (challengeError) throw challengeError;
+        
+        const { error: verifyError } = await supabase.auth.mfa.verify({
+          factorId: totpFactorId,
+          challengeId: challenge.id,
+          code: totpCode.trim()
+        });
+        if (verifyError) {
+          setTotpError('驗證碼不正確，請重新輸入您的 App 最新安全碼。');
+          return;
+        }
+        
+        setTwoFactorEnabled(true);
+        setShow2FAConfig(false);
+        setTotpCode('');
+        setTotpFactorId('');
+        setTotpQrCode('');
+        setTotpSecret('');
+      } else {
+        const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+          factorId: totpFactorId
+        });
+        if (challengeError) throw challengeError;
+        
+        const { error: verifyError } = await supabase.auth.mfa.verify({
+          factorId: totpFactorId,
+          challengeId: challenge.id,
+          code: totpCode.trim()
+        });
+        if (verifyError) {
+          setTotpError('驗證碼不正確，無法授權關閉。');
+          return;
+        }
+        
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+          factorId: totpFactorId
+        });
+        if (unenrollError) throw unenrollError;
+        
+        setTwoFactorEnabled(false);
+        setShow2FAConfig(false);
+        setTotpCode('');
+        setTotpFactorId('');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setTotpError(err.message || '驗證程式發生錯誤，請稍後重試。');
     }
   };
 
@@ -437,7 +535,7 @@ export default function SettingsModal({
                       </span>
                       <button
                         type="button"
-                        onClick={() => setShow2FAConfig(false)}
+                        onClick={handleClose2FAConfig}
                         className="text-neutral-500 hover:text-white"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -445,17 +543,26 @@ export default function SettingsModal({
                     </div>
 
                     {isActivating2FA ? (
-                      <div className="text-[10px] text-neutral-400 space-y-2 leading-relaxed">
-                        <p>請將下列安全金鑰手動加入到您的 Google Authenticator 或 TOTP 雙重驗證 App 中：</p>
-                        <div className="bg-black p-2.5 rounded border border-[#262626] font-mono text-xs text-white text-center flex items-center justify-center gap-1.5">
+                      <div className="text-[10px] text-neutral-400 space-y-3 leading-relaxed text-center">
+                        <p className="text-left">請使用您手機上的 Google Authenticator, Microsoft Authenticator 或 Authy 掃描下方二維碼以進行綁定：</p>
+                        
+                        {totpQrCode && (
+                          <div 
+                            dangerouslySetInnerHTML={{ __html: totpQrCode }} 
+                            className="mx-auto flex justify-center w-36 h-36 bg-white p-2 rounded-lg border border-[#262626] [&>svg]:w-full [&>svg]:h-full"
+                          />
+                        )}
+                        
+                        <p className="text-left">若無法掃描，可手動在 App 中輸入以下安全金鑰：</p>
+                        <div className="bg-black p-2 rounded border border-[#262626] font-mono text-[11px] text-white text-center flex items-center justify-center gap-1.5 select-all">
                           <Key className="h-3.5 w-3.5 text-neutral-500" />
-                          <span>OPPER-SEC-8F92</span>
+                          <span>{totpSecret}</span>
                         </div>
-                        <p className="text-[9px] text-neutral-500 mt-1">※ 請在下方輸入 App 產生的安全驗證碼（請輸入 <code className="text-white">123456</code> 進行驗證啟用）：</p>
+                        <p className="text-[9px] text-neutral-500 text-left mt-1">※ 請在下方輸入驗證 App 產生的 6 位數安全驗證碼以啟用防護。</p>
                       </div>
                     ) : (
                       <div className="text-[10px] text-neutral-400 leading-relaxed">
-                        <p>關閉雙重驗證會降低安全防護。請輸入您的 6 位數安全驗證碼（請輸入 <code className="text-white">123456</code> 驗證關閉）：</p>
+                        <p>關閉雙重驗證會降低安全防護。請輸入您的驗證 App 產生的 6 位數安全驗證碼進行授權解鎖：</p>
                       </div>
                     )}
 
