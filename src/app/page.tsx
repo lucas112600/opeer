@@ -549,16 +549,10 @@ export default function Home() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7] p-6 text-center select-none">
         <div className="w-full max-w-md rounded-xl bg-[#121212] border border-[#262626] p-8 space-y-6 text-left shadow-2xl animate-scale-in">
           {/* Logo & Header */}
-          <div className="flex flex-col items-center text-center space-y-4 pb-4 border-b border-[#262626]">
+          <div className="flex flex-col items-center text-center pb-4 border-b border-[#262626]">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#262626] bg-neutral-950 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo.png" alt="Opper" className="h-full w-full object-cover" />
-            </div>
-            <div>
-              <h1 className="text-lg font-black text-white tracking-tight">Opper 分身社交網絡</h1>
-              <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">
-                Secure & Private Public Square
-              </p>
             </div>
           </div>
 
