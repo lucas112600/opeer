@@ -50,6 +50,8 @@ CREATE TABLE public.posts (
     downvotes INTEGER DEFAULT 0 NOT NULL,-- 瞎爆票數
     has_sensitive_content BOOLEAN DEFAULT false NOT NULL, -- 敏感過濾警示標記
     image_url TEXT DEFAULT NULL,                          -- 話題附加相片網址或 Base64 Data URL
+    video_url TEXT DEFAULT NULL,                          -- 話題附加影片網址或 Base64 Data URL
+    audio_url TEXT DEFAULT NULL,                          -- 話題語音錄製 Base64 Data URL
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     
     CONSTRAINT topic_format CHECK (topic LIKE '#%')

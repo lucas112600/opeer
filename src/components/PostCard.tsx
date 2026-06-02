@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown, Share2, Trash2, MessageSquare, EyeOff, Globe, AlertCircle } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Share2, Trash2, MessageSquare, EyeOff, Globe, AlertCircle, Play, Pause } from 'lucide-react';
 import { Post, Profile, Comment, db } from '../lib/db';
 
 interface PostCardProps {
@@ -35,6 +35,62 @@ export default function PostCard({
   // 敏感內容顯示解鎖狀態
   const [revealPost, setRevealPost] = useState<boolean>(false);
   const [revealedComments, setRevealedComments] = useState<Record<string, boolean>>({});
+
+  // 新增多媒體與長文字狀態
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [audioInstance, setAudioInstance] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (post.audio_url) {
+      const audio = new Audio(post.audio_url);
+      
+      const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+      const onLoadedMetadata = () => setDuration(audio.duration || 0);
+      const onEnded = () => setIsPlaying(false);
+
+      audio.addEventListener('timeupdate', onTimeUpdate);
+      audio.addEventListener('loadedmetadata', onLoadedMetadata);
+      audio.addEventListener('ended', onEnded);
+
+      setAudioInstance(audio);
+
+      return () => {
+        audio.pause();
+        audio.removeEventListener('timeupdate', onTimeUpdate);
+        audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+        audio.removeEventListener('ended', onEnded);
+      };
+    }
+    return undefined;
+  }, [post.audio_url]);
+
+  const togglePlayAudio = () => {
+    if (!audioInstance) return;
+    if (isPlaying) {
+      audioInstance.pause();
+      setIsPlaying(false);
+    } else {
+      audioInstance.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    if (audioInstance) {
+      audioInstance.currentTime = newTime;
+    }
+  };
+
+  const formatAudioTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // 1. 卡片掛載時自動加載該話題的留言數與清單
   useEffect(() => {
@@ -238,19 +294,74 @@ export default function PostCard({
               </div>
 
               {/* 主文內容 */}
-              <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-4 select-text">
-                {post.content}
+              <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-2 select-text">
+                {post.content.length > 280 && !isExpanded ? `${post.content.substring(0, 280)}...` : post.content}
               </p>
+              {post.content.length > 280 && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="text-[10px] font-bold text-neutral-500 hover:text-white transition-colors mb-4 block cursor-pointer animate-fade-in"
+                >
+                  {isExpanded ? '收起全文' : '展開全文'}
+                </button>
+              )}
 
               {/* 話題相片 */}
               {post.image_url && (
                 <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden border border-[#262626] bg-neutral-950 max-h-[360px] flex items-center justify-center animate-fade-in">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={post.image_url}
                     alt="話題相片"
                     className="w-full h-full object-contain max-h-[360px]"
                   />
+                </div>
+              )}
+
+              {/* 話題影片 */}
+              {post.video_url && (
+                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden border border-[#262626] bg-black max-h-[360px] flex items-center justify-center animate-fade-in">
+                  <video
+                    src={post.video_url}
+                    controls
+                    preload="metadata"
+                    className="w-full h-full rounded-lg max-h-[360px] bg-black"
+                  />
+                </div>
+              )}
+
+              {/* 語音播放器 */}
+              {post.audio_url && (
+                <div className="mt-2.5 mb-4 rounded-lg border border-[#262626] bg-black p-3.5 flex items-center gap-4 animate-fade-in">
+                  <button
+                    type="button"
+                    onClick={togglePlayAudio}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 transition-colors flex-shrink-0 cursor-pointer shadow-md"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-4.5 w-4.5 text-black" />
+                    ) : (
+                      <Play className="h-4.5 w-4.5 text-black fill-black ml-0.5" />
+                    )}
+                  </button>
+
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="flex items-center justify-between text-[9px] text-neutral-500 font-mono select-none">
+                      <span className="font-bold">{formatAudioTime(currentTime)}</span>
+                      <span>{formatAudioTime(duration || 0)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max={duration || 100}
+                      value={currentTime}
+                      onChange={handleSliderChange}
+                      className="w-full h-1 bg-neutral-900 rounded-lg appearance-none cursor-pointer accent-white transition-all hover:bg-neutral-850"
+                      style={{
+                        background: `linear-gradient(to right, #ffffff 0%, #ffffff ${(duration ? (currentTime / duration) : 0) * 100}%, #171717 ${(duration ? (currentTime / duration) : 0) * 100}%, #171717 100%)`
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </>

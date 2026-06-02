@@ -307,10 +307,17 @@ export default function Home() {
   // 4. 核心功能操作
   // ----------------------------------------------------
 
-  const handleCreatePost = async (content: string, topic: string, isAnonymous: boolean, imageUrl?: string) => {
+  const handleCreatePost = async (
+    content: string, 
+    topic: string, 
+    isAnonymous: boolean, 
+    imageUrl?: string,
+    videoUrl?: string,
+    audioUrl?: string
+  ) => {
     if (!currentUser) return;
     try {
-      const newPost = await db.createPost(currentUser, content, topic, isAnonymous, imageUrl);
+      const newPost = await db.createPost(currentUser, content, topic, isAnonymous, imageUrl, videoUrl, audioUrl);
       setPosts(prev => [newPost, ...prev]);
       setIsPostModalOpen(false);
       fetchNotifications();

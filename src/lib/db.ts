@@ -27,6 +27,8 @@ export interface Post {
   created_at: string;
   algorithm_score?: number; // 智慧推薦熱度分數
   image_url?: string | null; // 話題附加照片網址或 Base64 字串
+  video_url?: string | null; // 話題附加影片網址或 Base64 字串
+  audio_url?: string | null; // 話題語音錄製 Base64 字串
 }
 
 export interface Vote {
@@ -295,7 +297,9 @@ export const db = {
     content: string, 
     topic: string, 
     isAnonymous: boolean,
-    imageUrl?: string
+    imageUrl?: string,
+    videoUrl?: string,
+    audioUrl?: string
   ): Promise<Post> => {
     const formattedTopic = topic.startsWith('#') ? topic.trim() : `#${topic.trim()}`;
     const hasSensitive = SENSITIVE_WORDS.some(word => content.includes(word));
@@ -313,6 +317,8 @@ export const db = {
             content: content,
             has_sensitive_content: hasSensitive,
             image_url: imageUrl || null,
+            video_url: videoUrl || null,
+            audio_url: audioUrl || null,
           }
        : {
             author_id: author.id,
@@ -324,6 +330,8 @@ export const db = {
             content: content,
             has_sensitive_content: hasSensitive,
             image_url: imageUrl || null,
+            video_url: videoUrl || null,
+            audio_url: audioUrl || null,
           };
 
     const { data, error } = await supabase
