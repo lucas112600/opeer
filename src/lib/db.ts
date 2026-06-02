@@ -73,43 +73,73 @@ export const ANONYMOUS_OWL = {
 const SENSITIVE_WORDS = ['自殺', '毒品', '暴力', '黑幕', '折舊費'];
 
 // ----------------------------------------------------
-// 離線預覽模式記憶體資料庫 (Offline Preview In-Memory Database)
-// ----------------------------------------------------
-let inMemoryCurrentUser: Profile | null = null;
-let inMemoryProfiles: Profile[] = [];
-let inMemoryPosts: Post[] = [];
-let inMemoryVotes: Vote[] = [];
-let inMemoryComments: Comment[] = [];
-let inMemoryNotifications: Notification[] = [];
-
-// ----------------------------------------------------
-// 雙軌資料庫串接介面 (雲端 Supabase + 精品離線預覽模式)
+// 雙軌資料庫串接介面 (雲端 Supabase - 徹底剪除一切假數據)
 // ----------------------------------------------------
 export const db = {
   
   // --- 帳號管理與 Auth 登入邏輯 ---
   
-  // 獲取目前登入的使用者資訊
-  getCurrentUser: async (): Promise<Profile | null> => {
-    if (!isSupabaseConfigured) {
-      if (!inMemoryCurrentUser) {
-        inMemoryCurrentUser = {
-          id: 'offline-guest',
-          username: 'opper_guest',
-          full_name: 'Opper 體驗官',
-          avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=offline-guest',
-          bio: '這是我的分身專用簡介 (離線預覽中)。',
-          is_public: true,
-          two_factor_enabled: false,
-          sensitive_filter_enabled: true,
-          created_at: new Date().toISOString()
-        };
-        if (!inMemoryProfiles.some(p => p.id === inMemoryCurrentUser!.id)) {
-          inMemoryProfiles.push(inMemoryCurrentUser);
+  // 使用 Email 與密碼註冊帳戶，並手動傳入 Full Name
+  signUpWithEmail: async (email: string, password: string, fullName: string): Promise<void> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置，無法進行註冊。');
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
         }
       }
-      return inMemoryCurrentUser;
+    });
+
+    if (error) throw error;
+  },
+
+  // 使用 Email 與密碼登入真實帳戶
+  signInWithEmail: async (email: string, password: string): Promise<Profile> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置，無法進行登入。');
+
+    const { data: { session }, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (authError || !session) throw authError || new Error('帳號或密碼錯誤。');
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (error || !data) {
+      const finalUsername = 'user_' + Math.random().toString(36).substring(2, 10);
+      const newProfile = {
+        id: session.user.id,
+        username: finalUsername,
+        full_name: email.split('@')[0],
+        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
+        bio: '這是我的分身專用簡介。',
+        is_public: true,
+        two_factor_enabled: false,
+        sensitive_filter_enabled: true
+      };
+      const { data: inserted, error: insertError } = await supabase
+        .from('profiles')
+        .insert([newProfile])
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      return inserted as Profile;
     }
+
+    return data as Profile;
+  },
+
+  // 獲取目前登入的使用者資訊
+  getCurrentUser: async (): Promise<Profile | null> => {
+    if (!isSupabaseConfigured) return null;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
@@ -124,29 +154,9 @@ export const db = {
     return data as Profile;
   },
 
-  // 登入/註冊帳戶
+  // 登入/註冊匿名帳戶 (相容舊版 RLS，但主推 Email 註冊)
   loginOrCreateAccount: async (username?: string, fullName?: string): Promise<Profile> => {
-    if (!isSupabaseConfigured) {
-      if (!inMemoryCurrentUser) {
-        const finalUsername = username || 'user_' + Math.random().toString(36).substring(2, 10);
-        const finalFullName = fullName || 'User_' + Math.random().toString(36).substring(2, 6).toUpperCase();
-        inMemoryCurrentUser = {
-          id: 'offline-guest',
-          username: finalUsername.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-          full_name: finalFullName,
-          avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=offline-guest`,
-          bio: '這是我的分身專用簡介 (離線預覽中)。',
-          is_public: true,
-          two_factor_enabled: false,
-          sensitive_filter_enabled: true,
-          created_at: new Date().toISOString()
-        };
-        if (!inMemoryProfiles.some(p => p.id === inMemoryCurrentUser!.id)) {
-          inMemoryProfiles.push(inMemoryCurrentUser);
-        }
-      }
-      return inMemoryCurrentUser;
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置，無法進行登入。');
 
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     let userId = currentUser?.id;
@@ -192,50 +202,13 @@ export const db = {
 
   // 登出
   signOut: async (): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      inMemoryCurrentUser = null;
-      return;
-    }
+    if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
   },
 
   // 修改個人設定 (基本資料、隱私公開、2FA、敏感過濾)
   updateProfile: async (userId: string, updates: Partial<Profile>): Promise<Profile> => {
-    if (!isSupabaseConfigured) {
-      if (inMemoryCurrentUser && inMemoryCurrentUser.id === userId) {
-        inMemoryCurrentUser = { ...inMemoryCurrentUser, ...updates };
-        inMemoryProfiles = inMemoryProfiles.map(p => p.id === userId ? inMemoryCurrentUser! : p);
-        
-        // 同步更新記憶體中該使用者的貼文與留言資訊
-        if (updates.username || updates.full_name || updates.avatar_url) {
-          inMemoryPosts = inMemoryPosts.map(p => {
-            if (p.author_id === userId && !p.is_anonymous) {
-              return {
-                ...p,
-                author_username: updates.username || p.author_username,
-                author_name: updates.full_name || p.author_name,
-                author_avatar: updates.avatar_url || p.author_avatar
-              };
-            }
-            return p;
-          });
-
-          inMemoryComments = inMemoryComments.map(c => {
-            if (c.author_id === userId && !c.is_anonymous) {
-              return {
-                ...c,
-                author_username: updates.username || c.author_username,
-                author_name: updates.full_name || c.author_name,
-                author_avatar: updates.avatar_url || c.author_avatar
-              };
-            }
-            return c;
-          });
-        }
-        return inMemoryCurrentUser;
-      }
-      throw new Error('離線預覽：未找到該使用者設定');
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const { data, error } = await supabase
       .from('profiles')
@@ -272,21 +245,7 @@ export const db = {
   // 依據 Username 獲取使用者個人檔案
   getProfileByUsername: async (username: string): Promise<Profile | null> => {
     const cleanUsername = username.trim().toLowerCase().replace('@', '');
-    if (!isSupabaseConfigured) {
-      const found = inMemoryProfiles.find(p => p.username === cleanUsername);
-      if (found) return found;
-      return {
-        id: `offline-user-${cleanUsername}`,
-        username: cleanUsername,
-        full_name: cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1),
-        avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${cleanUsername}`,
-        bio: '這是我的分身專用簡介。',
-        is_public: true,
-        two_factor_enabled: false,
-        sensitive_filter_enabled: true,
-        created_at: new Date().toISOString()
-      };
-    }
+    if (!isSupabaseConfigured) return null;
 
     const { data, error } = await supabase
       .from('profiles')
@@ -301,28 +260,7 @@ export const db = {
   
   // 獲取線上所有話題發文
   getPosts: async (orderBy: 'latest' | 'popular' | 'algorithm' = 'latest'): Promise<Post[]> => {
-    if (!isSupabaseConfigured) {
-      const postsWithScores = inMemoryPosts.map(p => {
-        const hoursPassed = (Date.now() - new Date(p.created_at).getTime()) / 3600000;
-        const commentCount = inMemoryComments.filter(c => c.post_id === p.id).length;
-        
-        // 智慧熱度推薦排序公式
-        const score = ((p.upvotes * 1.5) - (p.downvotes * 0.5) + (commentCount * 3.0) + 10) / Math.pow(hoursPassed + 2, 1.2);
-        
-        return {
-          ...p,
-          algorithm_score: score,
-        } as Post;
-      });
-
-      if (orderBy === 'latest') {
-        return postsWithScores.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      } else if (orderBy === 'popular') {
-        return postsWithScores.sort((a, b) => (b.upvotes + b.downvotes) - (a.upvotes + a.downvotes));
-      } else {
-        return postsWithScores.sort((a, b) => (b.algorithm_score || 0) - (a.algorithm_score || 0));
-      }
-    }
+    if (!isSupabaseConfigured) return [];
 
     const { data, error } = await supabase
       .from('posts')
@@ -362,43 +300,7 @@ export const db = {
     const formattedTopic = topic.startsWith('#') ? topic.trim() : `#${topic.trim()}`;
     const hasSensitive = SENSITIVE_WORDS.some(word => content.includes(word));
 
-    if (!isSupabaseConfigured) {
-      const newPost: Post = isAnonymous
-        ? {
-            id: 'offline-post-' + Math.random().toString(36).substring(2, 9),
-            author_id: null,
-            is_anonymous: true,
-            author_username: ANONYMOUS_OWL.username,
-            author_name: ANONYMOUS_OWL.full_name,
-            author_avatar: ANONYMOUS_OWL.avatar_url,
-            topic: formattedTopic,
-            content: content,
-            upvotes: 0,
-            downvotes: 0,
-            has_sensitive_content: hasSensitive,
-            created_at: new Date().toISOString(),
-            image_url: imageUrl || null
-          }
-        : {
-            id: 'offline-post-' + Math.random().toString(36).substring(2, 9),
-            author_id: author.id,
-            is_anonymous: false,
-            author_username: author.username,
-            author_name: author.full_name,
-            author_avatar: author.avatar_url,
-            topic: formattedTopic,
-            content: content,
-            upvotes: 0,
-            downvotes: 0,
-            has_sensitive_content: hasSensitive,
-            created_at: new Date().toISOString(),
-            image_url: imageUrl || null
-          };
-
-      inMemoryPosts.unshift(newPost);
-      await db.createMentionNotifications(content, isAnonymous ? null : author, newPost.id);
-      return newPost;
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const postData = isAnonymous
        ? {
@@ -437,10 +339,7 @@ export const db = {
 
   // 刪除話題
   deletePost: async (postId: string, userId: string): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      inMemoryPosts = inMemoryPosts.filter(p => !(p.id === postId && p.author_id === userId));
-      return;
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const { error } = await supabase
       .from('posts')
@@ -458,74 +357,7 @@ export const db = {
     userId: string | null,
     voteType: 'up' | 'down'
   ): Promise<{ upvotes: number; downvotes: number; userVote: 'up' | 'down' | null }> => {
-    if (!isSupabaseConfigured) {
-      const existingIdx = inMemoryVotes.findIndex(v => v.post_id === postId && v.user_id === userId);
-      let upDiff = 0;
-      let downDiff = 0;
-      let finalUserVote: 'up' | 'down' | null = voteType;
-
-      if (existingIdx !== -1) {
-        const oldVote = inMemoryVotes[existingIdx];
-        if (oldVote.vote_type === voteType) {
-          inMemoryVotes.splice(existingIdx, 1);
-          if (voteType === 'up') upDiff = -1;
-          else downDiff = -1;
-          finalUserVote = null;
-        } else {
-          inMemoryVotes[existingIdx].vote_type = voteType;
-          if (voteType === 'up') {
-            upDiff = 1;
-            downDiff = -1;
-          } else {
-            upDiff = -1;
-            downDiff = 1;
-          }
-        }
-      } else {
-        inMemoryVotes.push({
-          id: 'offline-vote-' + Math.random().toString(36).substring(2, 9),
-          user_id: userId,
-          post_id: postId,
-          vote_type: voteType,
-          created_at: new Date().toISOString()
-        });
-        if (voteType === 'up') upDiff = 1;
-        else downDiff = 1;
-      }
-
-      let postAuthorId: string | null = null;
-      inMemoryPosts = inMemoryPosts.map(p => {
-        if (p.id === postId) {
-          postAuthorId = p.author_id;
-          return {
-            ...p,
-            upvotes: Math.max(0, p.upvotes + upDiff),
-            downvotes: Math.max(0, p.downvotes + downDiff)
-          };
-        }
-        return p;
-      });
-
-      const updatedPost = inMemoryPosts.find(p => p.id === postId);
-
-      if (existingIdx === -1 && postAuthorId && userId) {
-        const sender = inMemoryProfiles.find(p => p.id === userId) || inMemoryCurrentUser;
-        if (sender) {
-          await db.createNotification(
-            postAuthorId,
-            sender,
-            postId,
-            voteType === 'up' ? 'vote_up' : 'vote_down'
-          );
-        }
-      }
-
-      return {
-        upvotes: updatedPost?.upvotes || 0,
-        downvotes: updatedPost?.downvotes || 0,
-        userVote: finalUserVote
-      };
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const { data: existingVote } = await supabase
       .from('votes')
@@ -610,10 +442,7 @@ export const db = {
   // 獲取投票狀態
   getUserVoteForPost: async (postId: string, userId: string | null): Promise<'up' | 'down' | null> => {
     if (!userId) return null;
-    if (!isSupabaseConfigured) {
-      const found = inMemoryVotes.find(v => v.post_id === postId && v.user_id === userId);
-      return found ? found.vote_type : null;
-    }
+    if (!isSupabaseConfigured) return null;
 
     const { data, error } = await supabase
       .from('votes')
@@ -629,11 +458,7 @@ export const db = {
 
   // 獲取特定話題的留言
   getComments: async (postId: string): Promise<Comment[]> => {
-    if (!isSupabaseConfigured) {
-      return inMemoryComments
-        .filter(c => c.post_id === postId)
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    }
+    if (!isSupabaseConfigured) return [];
 
     const { data, error } = await supabase
       .from('comments')
@@ -653,48 +478,7 @@ export const db = {
   ): Promise<Comment> => {
     const hasSensitive = SENSITIVE_WORDS.some(word => content.includes(word));
 
-    if (!isSupabaseConfigured) {
-      const newComment: Comment = isAnonymous
-        ? {
-            id: 'offline-comment-' + Math.random().toString(36).substring(2, 9),
-            post_id: postId,
-            author_id: null,
-            is_anonymous: true,
-            author_username: ANONYMOUS_OWL.username,
-            author_name: ANONYMOUS_OWL.full_name,
-            author_avatar: ANONYMOUS_OWL.avatar_url,
-            content: content,
-            has_sensitive_content: hasSensitive,
-            created_at: new Date().toISOString()
-          }
-        : {
-            id: 'offline-comment-' + Math.random().toString(36).substring(2, 9),
-            post_id: postId,
-            author_id: author.id,
-            is_anonymous: false,
-            author_username: author.username,
-            author_name: author.full_name,
-            author_avatar: author.avatar_url,
-            content: content,
-            has_sensitive_content: hasSensitive,
-            created_at: new Date().toISOString()
-          };
-
-      inMemoryComments.push(newComment);
-
-      const post = inMemoryPosts.find(p => p.id === postId);
-      if (post && post.author_id) {
-        await db.createNotification(
-          post.author_id,
-          isAnonymous ? null : author,
-          postId,
-          'comment'
-        );
-      }
-
-      await db.createMentionNotifications(content, isAnonymous ? null : author, postId);
-      return newComment;
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const commentData = isAnonymous
       ? {
@@ -746,10 +530,7 @@ export const db = {
 
   // 刪除回覆留言
   deleteComment: async (commentId: string, userId: string): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      inMemoryComments = inMemoryComments.filter(c => !(c.id === commentId && c.author_id === userId));
-      return;
-    }
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
 
     const { error } = await supabase
       .from('comments')
@@ -763,11 +544,7 @@ export const db = {
 
   // 獲取使用者所有的通知列
   getNotifications: async (userId: string): Promise<Notification[]> => {
-    if (!isSupabaseConfigured) {
-      return inMemoryNotifications
-        .filter(n => n.recipient_id === userId)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    }
+    if (!isSupabaseConfigured) return [];
 
     const { data, error } = await supabase
       .from('notifications')
@@ -780,12 +557,7 @@ export const db = {
 
   // 將某個用戶的所有通知標記為已讀
   markAllNotificationsRead: async (userId: string): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      inMemoryNotifications = inMemoryNotifications.map(n => 
-        n.recipient_id === userId ? { ...n, is_read: true } : n
-      );
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     const { error } = await supabase
       .from('notifications')
@@ -802,21 +574,7 @@ export const db = {
     type: Notification['type']
   ): Promise<void> => {
     if (sender && sender.id === recipientId) return;
-
-    if (!isSupabaseConfigured) {
-      inMemoryNotifications.push({
-        id: 'offline-notif-' + Math.random().toString(36).substring(2, 9),
-        recipient_id: recipientId,
-        sender_id: sender ? sender.id : null,
-        sender_username: sender ? sender.username : ANONYMOUS_OWL.username,
-        sender_avatar: sender ? sender.avatar_url : ANONYMOUS_OWL.avatar_url,
-        post_id: postId,
-        type: type,
-        is_read: false,
-        created_at: new Date().toISOString()
-      });
-      return;
-    }
+    if (!isSupabaseConfigured) return;
 
     const notificationData = {
       recipient_id: recipientId,
@@ -850,21 +608,7 @@ export const db = {
       );
 
       if (mentionedUsernames.length === 0) return;
-
-      if (!isSupabaseConfigured) {
-        for (const username of mentionedUsernames) {
-          const recipient = inMemoryProfiles.find(p => p.username === username);
-          if (recipient && recipient.is_public !== false) {
-            await db.createNotification(
-              recipient.id,
-              sender,
-              postId,
-              'mention'
-            );
-          }
-        }
-        return;
-      }
+      if (!isSupabaseConfigured) return;
 
       for (const username of mentionedUsernames) {
         const { data: recipient } = await supabase

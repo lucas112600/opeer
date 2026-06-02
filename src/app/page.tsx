@@ -14,7 +14,11 @@ import {
   ShieldCheck,
   X,
   Bell,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff,
+  Mail,
+  User
 } from 'lucide-react';
 import { db, Profile, Post, Notification } from '../lib/db';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -59,6 +63,16 @@ export default function Home() {
   // 即時通知中心狀態
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotificationsDrawer, setShowNotificationsDrawer] = useState<boolean>(false);
+
+  // 帳號認證與註冊登入狀態
+  const [authEmail, setAuthEmail] = useState<string>('');
+  const [authPassword, setAuthPassword] = useState<string>('');
+  const [authFullName, setAuthFullName] = useState<string>('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
 
   // 預設熱門話題標籤快捷列
   const hotTopics = [
@@ -107,23 +121,49 @@ export default function Home() {
     }
   }, [currentUser]);
 
-  // 自動在進入頁面時進行初始化，免除使用者手動點擊同意使用條款的阻擋
+  // 在頁面加載時，優先嘗試偵測真實使用者的 Supabase 雲端 Session
   useEffect(() => {
     const autoInit = async () => {
+      setIsCheckingSession(true);
       try {
         let user = await db.getCurrentUser();
-        if (!user) {
-          user = await db.loginOrCreateAccount();
+        if (user) {
+          setCurrentUser(user);
         }
-        setCurrentUser(user);
       } catch (err) {
-        console.error('自動登入初始化失敗：', err);
-        // 若初始化有延遲，手動載入話題牆
-        fetchFeed(activeTab);
+        console.error('偵測真實帳戶失敗：', err);
+      } finally {
+        setIsCheckingSession(false);
       }
     };
     autoInit();
-  }, [activeTab, fetchFeed]);
+  }, []);
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+
+    try {
+      if (authMode === 'login') {
+        const user = await db.signInWithEmail(authEmail.trim(), authPassword);
+        setCurrentUser(user);
+      } else {
+        if (authPassword.length < 6) {
+          throw new Error('密碼長度最少需為 6 個字元。');
+        }
+        await db.signUpWithEmail(authEmail.trim(), authPassword, authFullName.trim() || '分身成員');
+        alert('註冊成功！請點選「登入分身」以登入。');
+        setAuthMode('login');
+        setAuthPassword('');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(err.message || '認證操作失敗，請檢查輸入內容。');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -363,6 +403,167 @@ export default function Home() {
 
     triggerActionWith2FAGuard('reset_all', execute);
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7]">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
+        <span className="text-[10px] text-neutral-500 font-bold tracking-widest uppercase mt-3 animate-pulse">
+          Opper 安全校驗中...
+        </span>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7] p-6 text-center select-none">
+        <div className="w-full max-w-md rounded-xl bg-[#121212] border border-[#262626] p-8 space-y-6 text-left shadow-2xl animate-scale-in">
+          {/* Logo & Header */}
+          <div className="flex flex-col items-center text-center space-y-4 pb-4 border-b border-[#262626]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#262626] bg-neutral-950">
+              <span className="text-xl font-black text-white">Op</span>
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white tracking-tight">Opper 分身社交網絡</h1>
+              <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-1">
+                Secure & Private Public Square
+              </p>
+            </div>
+          </div>
+
+          {/* Tab Switcher */}
+          <div className="flex rounded-lg bg-black border border-[#202020] p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setAuthError(''); }}
+              className={`flex-1 text-center py-2 text-xs font-bold rounded transition-all cursor-pointer ${
+                authMode === 'login' 
+                  ? 'bg-neutral-900 text-white shadow-sm' 
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              登入分身帳戶
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('register'); setAuthError(''); }}
+              className={`flex-1 text-center py-2 text-xs font-bold rounded transition-all cursor-pointer ${
+                authMode === 'register' 
+                  ? 'bg-neutral-900 text-white shadow-sm' 
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              建立新分身
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleAuthSubmit} className="space-y-4">
+            {authMode === 'register' && (
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
+                  顯示名稱 (Full Name)
+                </label>
+                <div className="relative flex items-center">
+                  <User className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+                  <input
+                    type="text"
+                    required
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    placeholder="請輸入分身顯示姓名"
+                    className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-4 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
+                分身信箱 (Email Address)
+              </label>
+              <div className="relative flex items-center">
+                <Mail className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+                <input
+                  type="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="請輸入註冊信箱"
+                  className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-4 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
+                安全密碼 (Password)
+              </label>
+              <div className="relative flex items-center">
+                <Lock className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="請輸入 6 位數以上安全密碼"
+                  className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-9.5 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Error Alert */}
+            {authError && (
+              <div className="flex items-start gap-2 rounded-lg bg-rose-950/40 border border-rose-900/30 p-3 text-xs text-rose-450 text-left animate-fade-in">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full rounded-lg bg-white text-black py-2.5 text-xs font-bold hover:bg-neutral-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {authLoading ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
+              ) : authMode === 'login' ? (
+                '登入分身帳戶'
+              ) : (
+                '註冊並建立分身'
+              )}
+            </button>
+          </form>
+
+          {/* Database Setup Info (Warning Banner if not configured) */}
+          {!isSupabaseConfigured && (
+            <div className="text-[10px] text-amber-500 bg-amber-950/20 border border-amber-900/30 rounded-lg p-3 text-left space-y-1 mt-2">
+              <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <span>資料庫未設定 (Local DB Disconnected)</span>
+              </div>
+              <p className="text-neutral-400 leading-normal">
+                本系統不提供 any 假資料模擬。請先於專案根目錄配置 `.env.local` 檔案以連接您的真實 Supabase 雲端資料庫。
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-screen bg-black text-[#f3f5f7]">
