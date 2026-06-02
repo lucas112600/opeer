@@ -223,9 +223,6 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('media', 'media', true)
 ON CONFLICT (id) DO NOTHING;
 
--- 啟用 storage.objects 行級安全 (RLS) 政策
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
 -- 1. 允許所有人讀取多媒體檔案 (SELECT)
 CREATE POLICY "允許所有人讀取多媒體檔案"
     ON storage.objects FOR SELECT
