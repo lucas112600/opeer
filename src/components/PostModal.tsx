@@ -34,9 +34,11 @@ export default function PostModal({
 
     try {
       // 1. 解析與驗證 @提及 使用者公開狀態
-      const mentionRegex = /@([a-z0-9_]+)/gi;
+      const mentionRegex = /(?:^|\s)@([a-z0-9_]+)/gi;
       const matches = content.match(mentionRegex) || [];
-      const mentionedUsernames = Array.from(new Set(matches.map(m => m.substring(1).toLowerCase())));
+      const mentionedUsernames = Array.from(
+        new Set(matches.map(m => m.trim().substring(1).toLowerCase()))
+      );
 
       if (mentionedUsernames.length > 0) {
         for (const username of mentionedUsernames) {

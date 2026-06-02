@@ -466,6 +466,12 @@ export default function SettingsModal({
                           maxLength={6}
                           value={totpCode}
                           onChange={(e) => setTotpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleVerify2FA(e);
+                            }
+                          }}
                           placeholder="請輸入 6 位數驗證碼"
                           className="flex-1 text-center font-mono rounded bg-black border border-[#262626] text-xs text-white px-3 py-2 focus:border-white focus:outline-none"
                         />

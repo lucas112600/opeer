@@ -31,6 +31,29 @@ interface PendingAction {
 }
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // 排序狀態與投票對決
+  const [activeTab, setActiveTab] = useState<'latest' | 'popular'>('latest');
+  const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
+
+  // 彈窗控制
+  const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [selectedPostForShare, setSelectedPostForShare] = useState<Post | null>(null);
+  
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
+  const [appError, setAppError] = useState<string>('');
+
+  // 2FA 操作安全防護攔截狀態
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState<boolean>(false);
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState<string>('');
+  const [twoFAVerifyError, setTwoFAVerifyError] = useState<string>('');
+
   // 1. Check if Supabase is Configured
   if (!isSupabaseConfigured) {
     return (
@@ -79,51 +102,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
 
           {/* Footer Info */}
           <div className="text-[9px] text-neutral-600 leading-relaxed pt-2 text-center border-t border-[#262626]">
-            本專案不提供任何 LocalStorage 降級與本地假貼文模擬。配置憑證後將即刻從 Supabase 獲取實時數據！
+            本專案不提供 any LocalStorage 降級與本地假貼文模擬。配置憑證後將即刻從 Supabase 獲取實時數據！
           </div>
         </div>
       </div>
     );
   }
-
-  // Core App Logic
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [posts, setPosts] = useState<Post[]>([]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  
-  // 排序狀態與投票對決
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [activeTab, setActiveTab] = useState<'latest' | 'popular'>('latest');
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
-
-  // 彈窗控制
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [selectedPostForShare, setSelectedPostForShare] = useState<Post | null>(null);
-  
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [appError, setAppError] = useState<string>('');
-
-  // 2FA 操作安全防護攔截狀態
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [show2FAVerifyModal, setShow2FAVerifyModal] = useState<boolean>(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState<string>('');
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [twoFAVerifyError, setTwoFAVerifyError] = useState<string>('');
 
   // 預設熱門話題標籤快捷列
   const hotTopics = [
@@ -138,8 +122,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   // 1. 資料載入與帳號綁定
   // ----------------------------------------------------
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const fetchFeed = useCallback(async (tab: 'latest' | 'popular') => {
+    if (!isSupabaseConfigured) return;
     setIsDataLoading(true);
     try {
       const allPosts = await db.getPosts(tab);
@@ -164,6 +148,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   }, [currentUser]);
 
   const handleGatekeeperAccept = async () => {
+    if (!isSupabaseConfigured) return;
     try {
       let user = await db.getCurrentUser();
       if (!user) {
@@ -175,7 +160,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
     }
   };
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (currentUser) {
       fetchFeed(activeTab);
@@ -185,7 +169,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=您的_Supabase_匿名金鑰`}
   // ----------------------------------------------------
   // 2. 搜尋過濾
   // ----------------------------------------------------
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {

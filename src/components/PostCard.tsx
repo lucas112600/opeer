@@ -77,9 +77,11 @@ export default function PostCard({
 
     try {
       // 留言中的 @提及 隱私與公開審查
-      const mentionRegex = /@([a-z0-9_]+)/gi;
+      const mentionRegex = /(?:^|\s)@([a-z0-9_]+)/gi;
       const matches = newCommentText.match(mentionRegex) || [];
-      const mentionedUsernames = Array.from(new Set(matches.map(m => m.substring(1).toLowerCase())));
+      const mentionedUsernames = Array.from(
+        new Set(matches.map(m => m.trim().substring(1).toLowerCase()))
+      );
 
       if (mentionedUsernames.length > 0) {
         for (const username of mentionedUsernames) {
