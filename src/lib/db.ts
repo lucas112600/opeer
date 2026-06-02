@@ -9,6 +9,8 @@ export interface Profile {
   is_public: boolean; // 是否為公開帳號（可被他人提及）
   two_factor_enabled: boolean; // 是否開啟雙重驗證 (2FA)
   sensitive_filter_enabled: boolean; // 是否開啟敏感內容模糊警示偏好
+  last_profile_change_at?: string | null;
+  prev_profile_change_at?: string | null;
   created_at: string;
 }
 

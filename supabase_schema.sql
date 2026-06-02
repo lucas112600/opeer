@@ -11,6 +11,8 @@ CREATE TABLE public.profiles (
     is_public BOOLEAN DEFAULT true NOT NULL,
     two_factor_enabled BOOLEAN DEFAULT false NOT NULL,
     sensitive_filter_enabled BOOLEAN DEFAULT true NOT NULL,
+    last_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    prev_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     
     CONSTRAINT username_length CHECK (char_length(username) >= 3 AND char_length(username) <= 24),
@@ -245,4 +247,9 @@ CREATE POLICY "允許上傳者更新自己上傳的檔案"
     ON storage.objects FOR UPDATE
     USING (bucket_id = 'media' AND auth.uid() = owner)
     WITH CHECK (bucket_id = 'media' AND auth.uid() = owner);
+
+
+-- 8. 升級現有 profiles 資料表（支援 14 天修改次數限制）
+ALTER TABLE "public"."profiles" ADD COLUMN IF NOT EXISTS last_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+ALTER TABLE "public"."profiles" ADD COLUMN IF NOT EXISTS prev_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
 

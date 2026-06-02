@@ -15,9 +15,10 @@ import {
   Check, 
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Upload
 } from 'lucide-react';
-import { Profile } from '../lib/db';
+import { Profile, db } from '../lib/db';
 import { supabase } from '../lib/supabase';
 
 interface SettingsModalProps {
@@ -56,6 +57,24 @@ export default function SettingsModal({
   const [fullName, setFullName] = useState<string>(currentUser.full_name || '');
   const [bio, setBio] = useState<string>(currentUser.bio || '');
   const [avatarUrl, setAvatarUrl] = useState<string>(currentUser.avatar_url || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('頭像照片大小不能超過 2MB。');
+      return;
+    }
+
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Privacy preferences states
   const [isPublic, setIsPublic] = useState<boolean>(currentUser.is_public !== false);
@@ -92,6 +111,7 @@ export default function SettingsModal({
     const randomSeed = Math.random().toString(36).substring(2, 10);
     const newAvatar = `https://api.dicebear.com/7.x/${randomStyle}/svg?seed=${randomSeed}`;
     setAvatarUrl(newAvatar);
+    setAvatarFile(null);
   };
 
   const handleToggle2FA = async () => {
@@ -249,16 +269,56 @@ export default function SettingsModal({
       return;
     }
 
+    const trimmedFullName = fullName.trim() || '匿名使用者';
+
+    // 1. 檢查是否修改了顯示名稱或頭像
+    const isNameChanged = trimmedFullName !== (currentUser.full_name || '');
+    const isAvatarChanged = avatarFile !== null || avatarUrl !== (currentUser.avatar_url || '');
+
+    let finalLastChange = currentUser.last_profile_change_at;
+    let finalPrevChange = currentUser.prev_profile_change_at;
+
+    if (isNameChanged || isAvatarChanged) {
+      // 2. 進行 14 天內修改次數校驗
+      if (currentUser.prev_profile_change_at) {
+        const prevChangeTime = new Date(currentUser.prev_profile_change_at).getTime();
+        const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+        const timeDiff = Date.now() - prevChangeTime;
+
+        if (timeDiff < fourteenDaysMs) {
+          const remainingMs = fourteenDaysMs - timeDiff;
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          
+          alert(`抱歉，顯示名稱與頭像在 14 天內只能修改兩次。\n您最近一次修改週期尚未結束，請於 ${remainingDays} 天後再試。`);
+          return;
+        }
+      }
+
+      // 3. 更新時間戳記
+      finalPrevChange = currentUser.last_profile_change_at || new Date().toISOString();
+      finalLastChange = new Date().toISOString();
+    }
+
     setIsSubmitting(true);
     try {
+      let finalAvatarUrl = avatarUrl;
+      
+      // 4. 上傳頭像檔案至儲存桶
+      if (avatarFile) {
+        setErrorMsg('正在上傳自訂頭像照片...');
+        finalAvatarUrl = await db.uploadFile('media', 'avatars', avatarFile, avatarFile.name);
+      }
+
       await onSave({
         username: cleanUsername,
-        full_name: fullName.trim() || '匿名使用者',
+        full_name: trimmedFullName,
         bio: bio.trim(),
-        avatar_url: avatarUrl,
+        avatar_url: finalAvatarUrl,
         is_public: isPublic,
         sensitive_filter_enabled: sensitiveFilterEnabled,
         two_factor_enabled: twoFactorEnabled,
+        last_profile_change_at: finalLastChange,
+        prev_profile_change_at: finalPrevChange,
       });
       onClose();
     } catch (err: any) {
@@ -349,15 +409,28 @@ export default function SettingsModal({
                     />
                   </div>
                   <div className="flex-1">
-                    <span className="text-[10px] text-neutral-500 block mb-1.5">調整或生成隨機幾何與像素頭像</span>
-                    <button
-                      type="button"
-                      onClick={handleRandomAvatar}
-                      className="flex items-center gap-1.5 rounded bg-neutral-900 border border-[#262626] text-neutral-300 px-3 py-1.5 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      <span>更換隨機頭像</span>
-                    </button>
+                    <span className="text-[10px] text-neutral-500 block mb-1.5">上傳個人相片或生成隨機幾何像素頭像</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRandomAvatar}
+                        className="flex items-center gap-1.5 rounded bg-neutral-900 border border-[#262626] text-neutral-300 px-3 py-1.5 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        <span>隨機生成</span>
+                      </button>
+
+                      <label className="flex items-center gap-1.5 rounded bg-neutral-900 border border-[#262626] text-neutral-300 px-3 py-1.5 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors cursor-pointer select-none">
+                        <Upload className="h-3 w-3" />
+                        <span>上傳自訂頭像</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
