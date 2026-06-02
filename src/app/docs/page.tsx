@@ -521,34 +521,30 @@ author_name = "匿名使用者"`}
             
             <div className="bg-[#121212] border border-[#262626] p-5 rounded-lg space-y-4 text-xs text-neutral-400 leading-relaxed">
               <p>
-                Opper 社交審判與分身社群專案是由開源倡議團隊共同研發維護。我們致力於推廣絕對隱私、物理隔離發文以及透明公正的智慧推播技術。
+                Opper 社交審判與分身社群專案是由 **Opper 開發團隊** 獨立開發與安全維護。我們致力於推廣絕對隱私、物理隔離發文以及透明公正的智慧推薦演算法技術。
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#1f1f1f]">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">👤 核心開發與專案發起</span>
-                  <span className="text-xs font-bold text-neutral-200 block">Lucas Wang (王思源)</span>
-                  <a 
-                    href="https://github.com/lucas112600" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[10px] text-neutral-450 hover:text-white underline inline-block"
-                  >
-                    GitHub: @lucas112600
-                  </a>
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">📁 官方開源 GitHub 儲存庫</span>
-                  <span className="text-xs font-bold text-neutral-200 block">Opeer Open Source Project</span>
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">👥 核心開發團隊</span>
+                  <span className="text-xs font-bold text-neutral-200 block">Opper 開發團隊 (Opper Team)</span>
                   <a 
                     href="https://github.com/lucas112600/opeer" 
                     target="_blank" 
                     rel="noopener noreferrer" 
                     className="text-[10px] text-neutral-450 hover:text-white underline inline-block"
                   >
-                    Repository: lucas112600/opeer
+                    專案儲存庫: lucas112600/opeer
                   </a>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">💼 工作機會與合作洽談</span>
+                  <span className="text-xs font-bold text-neutral-200 block">聯絡人：Opper 招募小組</span>
+                  <div className="text-[10px] text-neutral-400 space-y-0.5 mt-1 font-mono">
+                    <div className="block">行動電話：<a href="tel:0912330351" className="hover:text-white underline">0912330351</a></div>
+                    <div className="block">電子郵件：<a href="mailto:huchialin97@gmail.com" className="hover:text-white underline">huchialin97@gmail.com</a></div>
+                  </div>
                 </div>
               </div>
 
