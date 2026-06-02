@@ -344,6 +344,11 @@ author_name = "匿名使用者"`}
                 <p className="text-neutral-450">
                   <strong>防騷擾副作用：</strong>由於 <code className="text-white bg-neutral-900 px-1 rounded font-bold">author_id IS NULL</code>，當其他使用者對該匿名話題進行 👍/👎 投票或發表留言回覆時，系統在通知模組中無法為其找到話題作者的 UUID。因此，<strong>匿名貼文絕對不會對任何人產生話題通知。</strong> 這項設計完全切斷了惡意人士透過灌票、留言洗版來實施「通知轟炸」以干擾匿名者日常使用的可能性，這才是真正的物理匿名與防騷擾保護！
                 </p>
+                <p className="text-neutral-450 border-t border-[#1f1f1f] pt-3 mt-3">
+                  <strong>🔒 後端端點反向代理隱蔽機制 (Reverse Proxy Endpoint Shielding)：</strong>
+                  <br />
+                  為了徹底避免在客戶端瀏覽器中洩漏 Supabase 雲端資料庫的真實後台網址，Opper 採用了 **Next.js Rewrite** 反向代理技術。在前端 JavaScript 連線初始化時，系統將 Supabase API 連線路徑統一指向本站端點 <code className="text-white bg-neutral-900 px-1 rounded font-mono">/_supabase</code>。當瀏覽器發起資料請求時，雲端 Edge 伺服器會在後台安靜地代理轉發至真實的後端資料庫網址。這使得訪客在開發者工具中<strong>永遠只能看到本地端點 `/_supabase`</strong>，絕無可能探查與追蹤真實後台網址！
+                </p>
               </div>
             </div>
           </section>
