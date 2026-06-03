@@ -254,17 +254,17 @@ export default function PostModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-2xl animate-fade-in">
       <div 
         id="post-modal"
-        className="w-full max-w-[620px] rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] shadow-2xl animate-scale-in flex flex-col max-h-[90vh]"
+        className="w-full max-w-[620px] rounded-[2rem] bg-[#0a0a0a]/80 backdrop-blur-3xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-scale-in flex flex-col max-h-[90vh] overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#1f1f1f] px-6 py-4 flex-shrink-0">
+        <div className="flex items-center justify-between border-b border-white/10 px-8 py-5 flex-shrink-0 bg-white/[0.02]">
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-500 hover:text-white transition-colors cursor-pointer"
+            className="text-neutral-400 hover:text-white transition-all duration-300 hover:scale-105 cursor-pointer"
           >
             取消
           </button>
@@ -288,19 +288,16 @@ export default function PostModal({
         )}
 
         {/* Form Content (Threads Style Flow) */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin flex flex-col">
-          <div className="flex w-full items-start">
-            
-            {/* Left: Avatar & Line */}
-            <div className="mr-3.5 flex flex-col items-center flex-shrink-0 w-9">
-              <div className="relative h-9 w-9 overflow-hidden rounded-full bg-neutral-900">
-                <img
-                  src={isAnonymous ? ANONYMOUS_OWL.avatar_url : currentUser.avatar_url}
-                  alt="身分頭像"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="w-[1px] h-full min-h-[40px] bg-[#1f1f1f] mt-2 rounded-full" />
+        <div className="flex-1 overflow-y-auto p-8 scrollbar-thin flex flex-col">
+          <div className="flex gap-4 h-full">
+            {/* 固定的左側分身大頭貼與身分線 */}
+            <div className="flex flex-col items-center flex-shrink-0">
+              <img
+                src={isAnonymous ? ANONYMOUS_OWL.avatar_url : currentUser.avatar_url}
+                alt={isAnonymous ? "匿名" : currentUser.full_name}
+                className="h-12 w-12 rounded-full border border-white/10 shadow-lg"
+              />
+              <div className="w-[1.5px] bg-gradient-to-b from-white/10 to-transparent flex-1 mt-4 rounded-full"></div>
             </div>
 
             {/* Right: Content Input */}

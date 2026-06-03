@@ -81,12 +81,12 @@ export default function UserProfileModal({
   const isPrivate = profile && !profile.is_public && !isOwner;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-2xl animate-fade-in">
       <div 
-        className="w-full max-w-[620px] rounded-2xl bg-[#0a0a0a] border border-[#1f1f1f] shadow-2xl flex flex-col h-[85vh] sm:h-[80vh] overflow-hidden"
+        className="w-full max-w-[620px] rounded-[2rem] bg-[#0a0a0a]/80 backdrop-blur-3xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col h-[85vh] sm:h-[80vh] overflow-hidden"
       >
         {/* Header (Top Nav) */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#1f1f1f] bg-[#0a0a0a]/90 backdrop-blur px-6 py-4 flex-shrink-0">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-white/[0.02] px-8 py-5 flex-shrink-0">
           <div className="flex items-center gap-4">
             <h2 className="text-sm font-bold text-white">個人主頁</h2>
           </div>
@@ -122,41 +122,40 @@ export default function UserProfileModal({
               </div>
             </div>
 
-            {/* Private Profile Screen */}
             {isPrivate ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 border-t border-[#1f1f1f]">
-                <div className="h-16 w-16 rounded-full border border-[#1f1f1f] bg-neutral-900 flex items-center justify-center mb-4">
-                  <Lock className="h-6 w-6 text-neutral-500" />
+              <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 border-t border-white/10">
+                <div className="h-20 w-20 rounded-[2rem] border border-white/10 bg-white/[0.05] shadow-[0_4px_20px_rgb(0,0,0,0.2)] flex items-center justify-center mb-6">
+                  <Lock className="h-8 w-8 text-neutral-400" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">🔒 這是非公開帳號</h3>
-                <p className="text-xs text-neutral-500 text-center max-w-sm leading-relaxed">
+                <h3 className="text-lg font-bold text-white mb-3">🔒 這是非公開帳號</h3>
+                <p className="text-sm text-neutral-400 text-center max-w-sm leading-relaxed">
                   該帳戶的個人檔案是不公開的。只有被允許的跟隨者可以查看其話題串與回覆。
                 </p>
               </div>
             ) : (
               <>
                 {/* Tabs */}
-                <div className="flex border-b border-[#1f1f1f] sticky top-0 bg-[#0a0a0a] z-10">
+                <div className="flex border-b border-white/10 sticky top-0 bg-transparent backdrop-blur-md z-10">
                   <button
                     onClick={() => setActiveTab('posts')}
-                    className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 ${
-                      activeTab === 'posts' ? 'text-white border-white' : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                    className={`flex-1 py-4 text-xs font-bold transition-all duration-300 cursor-pointer border-b-2 ${
+                      activeTab === 'posts' ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]' : 'text-neutral-500 border-transparent hover:text-neutral-300 hover:bg-white/[0.02]'
                     }`}
                   >
                     串文
                   </button>
                   <button
                     onClick={() => setActiveTab('votes')}
-                    className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 ${
-                      activeTab === 'votes' ? 'text-white border-white' : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                    className={`flex-1 py-4 text-xs font-bold transition-all duration-300 cursor-pointer border-b-2 ${
+                      activeTab === 'votes' ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]' : 'text-neutral-500 border-transparent hover:text-neutral-300 hover:bg-white/[0.02]'
                     }`}
                   >
                     參與投票
                   </button>
                   <button
                     onClick={() => setActiveTab('replies')}
-                    className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer border-b-2 ${
-                      activeTab === 'replies' ? 'text-white border-white' : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                    className={`flex-1 py-4 text-xs font-bold transition-all duration-300 cursor-pointer border-b-2 ${
+                      activeTab === 'replies' ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]' : 'text-neutral-500 border-transparent hover:text-neutral-300 hover:bg-white/[0.02]'
                     }`}
                   >
                     回覆
@@ -164,7 +163,7 @@ export default function UserProfileModal({
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 bg-[#0a0a0a]">
+                <div className="flex-1 bg-transparent p-4">
                   {activeTab === 'posts' && (
                     <div className="flex flex-col">
                       {posts.length > 0 ? (

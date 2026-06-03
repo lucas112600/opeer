@@ -761,12 +761,12 @@ export default function Home() {
           </div>
 
           {currentUser && (
-            <div className="border-t border-[#262626] pt-4 mt-2 space-y-3.5">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block">
+            <div className="border-t border-white/[0.05] pt-6 mt-4 space-y-3.5">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">
                 當前分身
               </span>
-              <div className="bg-[#121212] border border-[#262626] rounded-lg p-3 text-left space-y-2">
-                <div className="flex items-center gap-2">
+              <div className="bg-white/[0.02] backdrop-blur-lg border border-white/[0.05] rounded-2xl p-4 text-left space-y-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)] hover:border-white/[0.1] transition-colors">
+                <div className="flex items-center gap-3">
                   <img
                     src={currentUser.avatar_url}
                     alt={currentUser.full_name}
@@ -783,7 +783,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setIsProfileModalOpen(true)}
-                  className="w-full text-center py-1.5 rounded bg-neutral-900 border border-[#262626] hover:bg-neutral-800 text-[10px] text-neutral-300 font-bold transition-colors cursor-pointer"
+                  className="w-full text-center py-2 rounded-xl bg-white/[0.05] border border-white/[0.05] hover:bg-white/[0.1] hover:scale-[1.02] text-[10px] text-neutral-200 font-bold transition-all duration-300 cursor-pointer"
                 >
                   設定分身
                 </button>
@@ -797,14 +797,14 @@ export default function Home() {
           
           {/* 搜尋列 */}
           <section className="relative flex items-center flex-shrink-0">
-            <Search className="absolute left-3.5 h-3.5 w-3.5 text-neutral-550" />
+            <Search className="absolute left-4 h-4 w-4 text-neutral-400" />
             <input
               id="search-topics"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜尋話題標籤 (如: #感情) 或貼文內文..."
-              className="w-full rounded-lg bg-[#121212] border border-[#262626] pl-9 pr-9 py-2.5 text-xs text-white focus:border-white focus:outline-none transition-colors"
+              className="w-full rounded-2xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.05] pl-10 pr-10 py-3 text-xs text-white focus:border-white/[0.2] focus:bg-white/[0.06] focus:outline-none transition-all duration-300 shadow-inner"
             />
             {searchQuery && (
               <button
@@ -838,9 +838,9 @@ export default function Home() {
               <button
                 id="tab-algorithm"
                 onClick={() => { setActiveTab('algorithm'); setSearchQuery(''); }}
-                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
+                className={`pb-3 text-xs font-black transition-all duration-300 border-b-2 whitespace-nowrap px-1 ${
                   activeTab === 'algorithm' && !searchQuery
-                    ? 'text-white border-white'
+                    ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
                     : 'text-neutral-500 border-transparent hover:text-neutral-300'
                 }`}
               >
@@ -849,9 +849,9 @@ export default function Home() {
               <button
                 id="tab-latest"
                 onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}
-                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
+                className={`pb-3 text-xs font-black transition-all duration-300 border-b-2 whitespace-nowrap px-1 ${
                   activeTab === 'latest' && !searchQuery
-                    ? 'text-white border-white'
+                    ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
                     : 'text-neutral-500 border-transparent hover:text-neutral-300'
                 }`}
               >
@@ -860,9 +860,9 @@ export default function Home() {
               <button
                 id="tab-popular"
                 onClick={() => { setActiveTab('popular'); setSearchQuery(''); }}
-                className={`pb-2 text-xs font-black transition-all border-b-2 whitespace-nowrap ${
+                className={`pb-3 text-xs font-black transition-all duration-300 border-b-2 whitespace-nowrap px-1 ${
                   activeTab === 'popular' && !searchQuery
-                    ? 'text-white border-white'
+                    ? 'text-white border-white shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
                     : 'text-neutral-500 border-transparent hover:text-neutral-300'
                 }`}
               >
@@ -926,8 +926,8 @@ export default function Home() {
         <aside className="hidden lg:flex flex-col w-56 shrink-0 sticky top-24 gap-6 text-left">
           
           {/* 熱門標籤清單 */}
-          <div className="bg-[#121212] border border-[#262626] rounded-xl p-4 space-y-3">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block">
+          <div className="bg-white/[0.02] backdrop-blur-lg border border-white/[0.05] rounded-3xl p-5 space-y-4 shadow-[0_4px_20px_rgb(0,0,0,0.1)]">
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block pl-1">
               熱門話題標籤
             </span>
             <div className="flex flex-col gap-2">
@@ -935,10 +935,10 @@ export default function Home() {
                 <button
                   key={topic}
                   onClick={() => setSearchQuery(topic)}
-                  className={`w-full text-left px-2.5 py-1.5 rounded text-[11px] font-bold border transition-colors truncate block cursor-pointer ${
+                  className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-bold border transition-all duration-300 truncate block cursor-pointer hover:scale-[1.02] ${
                     searchQuery === topic
-                      ? 'bg-white text-black border-white'
-                      : 'bg-black border-[#262626] text-neutral-400 hover:text-white hover:bg-neutral-955'
+                      ? 'bg-white/10 text-white border-white/20 shadow-lg'
+                      : 'bg-black/20 border-white/[0.05] text-neutral-400 hover:text-white hover:bg-white/[0.05]'
                   }`}
                 >
                   {topic}
@@ -948,7 +948,7 @@ export default function Home() {
           </div>
 
           {/* 中性宣告說明卡 */}
-          <div className="bg-[#121212] border border-[#262626] rounded-xl p-4 space-y-2">
+          <div className="bg-white/[0.02] backdrop-blur-lg border border-white/[0.05] rounded-3xl p-5 space-y-3 shadow-[0_4px_20px_rgb(0,0,0,0.1)]">
             <div className="flex items-center gap-1.5 text-neutral-400">
               <HelpCircle className="h-4 w-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">
