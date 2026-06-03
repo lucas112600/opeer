@@ -14,8 +14,11 @@ interface PostModalProps {
     isAnonymous: boolean, 
     imageUrl?: string,
     videoUrl?: string,
-    audioUrl?: string
+    audioUrl?: string,
+    communityId?: string
   ) => Promise<void>;
+  communities?: import('../lib/db').Community[];
+  defaultCommunityId?: string;
 }
 
 export default function PostModal({
@@ -23,9 +26,12 @@ export default function PostModal({
   isOpen,
   onClose,
   onSubmit,
+  communities = [],
+  defaultCommunityId,
 }: PostModalProps) {
   const [content, setContent] = useState<string>('');
   const [topic, setTopic] = useState<string>('');
+  const [communityId, setCommunityId] = useState<string>(defaultCommunityId || '');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
   
   // 多媒體附件狀態
@@ -232,7 +238,8 @@ export default function PostModal({
         isAnonymous, 
         finalImageUrl || undefined,
         finalVideoUrl || undefined,
-        finalAudioUrl || undefined
+        finalAudioUrl || undefined,
+        communityId || undefined
       );
 
       setContent('');
@@ -272,7 +279,7 @@ export default function PostModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || !content.trim() || !topic.trim()}
+            disabled={isSubmitting || !content.trim()}
             className="rounded-full bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-neutral-200 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {isSubmitting ? '發布中...' : '發布'}
@@ -333,14 +340,30 @@ export default function PostModal({
 
               {/* Topic Input (Minimalist) */}
               <div className="flex items-center mb-4 mt-2 border-b border-[#1f1f1f] pb-1">
-                <span className="text-neutral-500 font-bold mr-1">#</span>
-                <input
-                  type="text"
-                  value={topic.replace('#', '')}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="話題標籤"
-                  className="flex-1 bg-transparent border-none text-xs text-white placeholder-neutral-700 focus:ring-0 focus:outline-none"
-                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex gap-2 mb-2">
+                    {communities.length > 0 && (
+                      <select
+                        value={communityId}
+                        onChange={(e) => setCommunityId(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-white placeholder-neutral-600 focus:outline-none flex-1"
+                      >
+                        <option value="">選擇要發布的社群 (選填)</option>
+                        {communities.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    )}
+                    <input
+                      type="text"
+                      placeholder={communityId ? "或自訂標籤 (選填)" : "輸入話題標籤 (如: #感情)"}
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="bg-transparent text-sm font-bold text-white placeholder-neutral-600 focus:outline-none flex-1"
+                      maxLength={20}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Attachments Preview */}

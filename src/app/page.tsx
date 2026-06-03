@@ -18,9 +18,11 @@ import {
   Eye,
   EyeOff,
   Mail,
-  User
+  User,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
-import { db, Profile, Post, Notification } from '../lib/db';
+import { db, Profile, Post, Notification, Community } from '../lib/db';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 
@@ -44,8 +46,13 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // 排序狀態與投票對決
-  const [activeTab, setActiveTab] = useState<'algorithm' | 'latest' | 'popular'>('algorithm');
+  const [activeTab, setActiveTab] = useState<'algorithm' | 'latest' | 'popular' | 'community'>('algorithm');
   const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
+
+  // 社群狀態
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
 
   // 彈窗與通知抽屜控制
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
@@ -131,42 +138,17 @@ export default function Home() {
     customAlert('話題社群提示', message);
   };
 
-  // 動態熱門話題標籤快捷列（自動彙整真實貼文標籤，降序排列）
-  const hotTopics = (() => {
-    const counts: Record<string, number> = {};
-    posts.forEach(p => {
-      if (p.topic && p.topic.startsWith('#')) {
-        const t = p.topic.trim();
-        counts[t] = (counts[t] || 0) + 1;
-      }
-    });
-    
-    const sorted = Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .map(entry => entry[0]);
-      
-    if (sorted.length > 0) {
-      return sorted.slice(0, 5);
-    }
-    
-    // 當資料庫暫無話題時的預設備用標籤
-    return [
-      '#感情公審',
-      '#微辣AA制',
-      '#職場黑幕',
-      '#兩性關係',
-      '#職場八卦'
-    ];
-  })();
-
   // ----------------------------------------------------
   // 1. 資料載入與帳號綁定
   // ----------------------------------------------------
 
-  const fetchFeed = useCallback(async (tab: 'algorithm' | 'latest' | 'popular') => {
+  const fetchFeed = useCallback(async (tab: 'algorithm' | 'latest' | 'popular' | 'community') => {
     setIsDataLoading(true);
     try {
-      const allPosts = await db.getPosts(tab);
+      const allPosts = await db.getPosts(
+        tab === 'community' ? 'latest' : tab, 
+        tab === 'community' && selectedCommunity ? selectedCommunity.id : undefined
+      );
       setPosts(allPosts);
       
       if (currentUser) {
@@ -212,7 +194,18 @@ export default function Home() {
         setIsCheckingSession(false);
       }
     };
+
+    const loadCommunities = async () => {
+      try {
+        const comms = await db.getCommunities();
+        setCommunities(comms);
+      } catch (err) {
+        console.error('無法載入社群', err);
+      }
+    };
+
     autoInit();
+    loadCommunities();
   }, []);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -243,10 +236,25 @@ export default function Home() {
 
   useEffect(() => {
     if (currentUser) {
-      fetchFeed(activeTab);
       fetchNotifications();
+      const loadUserCommunities = async () => {
+        try {
+          const joined = await db.getJoinedCommunities(currentUser.id);
+          setJoinedCommunities(joined);
+        } catch (err) {}
+      };
+      loadUserCommunities();
+    } else {
+      setJoinedCommunities([]);
     }
-  }, [currentUser, activeTab, fetchFeed, fetchNotifications]);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (activeTab === 'community' && !selectedCommunity) {
+      return;
+    }
+    fetchFeed(activeTab);
+  }, [activeTab, selectedCommunity, fetchFeed, fetchNotifications]);
 
   // ----------------------------------------------------
   // 2. 搜尋過濾
@@ -398,9 +406,9 @@ export default function Home() {
 
   const getNotificationText = (type: Notification['type']) => {
     switch (type) {
-      case 'vote_up': return '對您的話題投了 👍 挺你。';
-      case 'vote_down': return '對您的話題投了 👎 瞎爆。';
-      case 'comment': return '評論回覆了您的話題。';
+      case 'vote_up': return <span className="flex items-center gap-1">對您的話題投了 <ThumbsUp className="h-3 w-3" /> 挺你 (Upvote)。</span>;
+      case 'vote_down': return <span className="flex items-center gap-1">對您的話題投了 <ThumbsDown className="h-3 w-3" /> 瞎爆 (Downvote)。</span>;
+      case 'comment': return <span className="flex items-center gap-1">評論 <MessageSquare className="h-3 w-3" /> 回覆了您的話題。</span>;
       case 'mention': return '在話題內容或回覆中提及標記了你。';
       default: return '與您的話題進行了互動。';
     }
@@ -459,6 +467,28 @@ export default function Home() {
     };
 
     triggerActionWith2FAGuard('save_profile', execute);
+  };
+
+  const handleJoinCommunity = async (communityId: string) => {
+    if (!currentUser) return;
+    try {
+      await db.joinCommunity(communityId, currentUser.id);
+      const joined = await db.getJoinedCommunities(currentUser.id);
+      setJoinedCommunities(joined);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleLeaveCommunity = async (communityId: string) => {
+    if (!currentUser) return;
+    try {
+      await db.leaveCommunity(communityId, currentUser.id);
+      const joined = await db.getJoinedCommunities(currentUser.id);
+      setJoinedCommunities(joined);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleVote = async (postId: string, voteType: 'up' | 'down') => {
@@ -537,10 +567,16 @@ export default function Home() {
 
   if (isCheckingSession) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7]">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
-        <span className="text-[10px] text-neutral-500 font-bold tracking-widest uppercase mt-3 animate-pulse">
-          Opper 安全校驗中...
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] text-[#f3f5f7]">
+        <div className="relative flex items-center justify-center h-20 w-20">
+          <div className="absolute inset-0 rounded-2xl bg-white/5 animate-ping" />
+          <div className="relative h-16 w-16 rounded-xl border border-[#262626] bg-neutral-950 overflow-hidden shadow-2xl animate-pulse">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="Opper" className="h-full w-full object-cover animate-spin-slow" style={{ animationDuration: '3s' }} />
+          </div>
+        </div>
+        <span className="text-[10px] text-neutral-500 font-bold tracking-widest uppercase mt-6 animate-pulse">
+          Opeer 載入中...
         </span>
       </div>
     );
@@ -548,112 +584,82 @@ export default function Home() {
 
   if (!currentUser) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-[#f3f5f7] p-6 text-center select-none">
-        <div className="w-full max-w-md rounded-xl bg-[#121212] border border-[#262626] p-8 space-y-6 text-left shadow-2xl animate-scale-in">
-          {/* Logo & Header */}
-          <div className="flex flex-col items-center text-center pb-4 border-b border-[#262626]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-[#262626] bg-neutral-950 overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Opper" className="h-full w-full object-cover" />
-            </div>
-          </div>
+      <div className="relative flex flex-col items-center justify-center min-h-screen bg-[#0a0a0a] text-[#f3f5f7] p-6 text-center select-none overflow-hidden">
+        
+        {/* Dynamic SVG Text Background */}
+        <div className="absolute top-[-30vh] left-1/2 -translate-x-1/2 w-[150vw] md:w-[100vw] h-[100vw] max-h-[800px] pointer-events-none z-0 opacity-90 mix-blend-screen flex items-center justify-center">
+          <svg viewBox="0 0 1000 1000" className="w-full h-full animate-[spin_120s_linear_infinite]" xmlns="http://www.w3.org/2000/svg">
+            <path id="curve1" d="M 100,500 A 400,400 0 1,1 900,500 A 400,400 0 1,1 100,500" fill="transparent" />
+            <path id="curve2" d="M 200,500 A 300,300 0 1,0 800,500 A 300,300 0 1,0 200,500" fill="transparent" />
+            <path id="curve3" d="M 350,500 A 150,150 0 1,1 650,500 A 150,150 0 1,1 350,500" fill="transparent" />
+            
+            <text fontSize="52" fontWeight="900" fill="transparent" stroke="rgba(255,255,255,0.8)" strokeWidth="2" letterSpacing="12">
+              <textPath href="#curve1" startOffset="0%">OPEER OPEER OPEER OPEER OPEER OPEER OPEER OPEER OPEER OPEER</textPath>
+            </text>
+            <text fontSize="44" fontWeight="900" fill="white" letterSpacing="10">
+              <textPath href="#curve2" startOffset="25%">OPEER OPEER OPEER OPEER OPEER OPEER OPEER</textPath>
+            </text>
+            <text fontSize="36" fontWeight="900" fill="transparent" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" letterSpacing="8">
+              <textPath href="#curve3" startOffset="50%">OPEER OPEER OPEER</textPath>
+            </text>
+          </svg>
+        </div>
 
-          {/* Tab Switcher */}
-          <div className="flex rounded-lg bg-black border border-[#202020] p-1 gap-1">
-            <button
-              type="button"
-              onClick={() => { setAuthMode('login'); setAuthError(''); }}
-              className={`flex-1 text-center py-2 text-xs font-bold rounded transition-all cursor-pointer ${
-                authMode === 'login' 
-                  ? 'bg-neutral-900 text-white shadow-sm' 
-                  : 'text-neutral-500 hover:text-neutral-300'
-              }`}
-            >
-              登入分身帳戶
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('register'); setAuthError(''); }}
-              className={`flex-1 text-center py-2 text-xs font-bold rounded transition-all cursor-pointer ${
-                authMode === 'register' 
-                  ? 'bg-neutral-900 text-white shadow-sm' 
-                  : 'text-neutral-500 hover:text-neutral-300'
-              }`}
-            >
-              建立新分身
-            </button>
-          </div>
+        <div className="relative z-10 w-full max-w-[360px] flex flex-col items-center mt-32 md:mt-48">
+          
+          <h2 className="text-[13px] font-bold text-white mb-6">
+            {authMode === 'login' ? '登入 Opeer 分身帳戶' : '註冊 Opeer 分身帳戶'}
+          </h2>
 
           {/* Form */}
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {authMode === 'register' && (
-              <div className="space-y-1.5 text-left">
-                <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
-                  顯示名稱 (Full Name)
-                </label>
-                <div className="relative flex items-center">
-                  <User className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+          <form onSubmit={handleAuthSubmit} className="w-full flex flex-col items-center">
+            
+            <div className="w-full rounded-xl overflow-hidden border border-[#262626] bg-[#121212] mb-4">
+              {authMode === 'register' && (
+                <div className="border-b border-[#262626]">
                   <input
                     type="text"
                     required
                     value={authFullName}
                     onChange={(e) => setAuthFullName(e.target.value)}
-                    placeholder="請輸入分身顯示姓名"
-                    className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-4 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                    placeholder="顯示名稱 (Full Name)"
+                    className="w-full bg-transparent px-4 py-3.5 text-xs text-white placeholder-neutral-500 focus:outline-none transition-colors"
                   />
                 </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
-                分身信箱 (Email Address)
-              </label>
-              <div className="relative flex items-center">
-                <Mail className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+              )}
+              <div className="border-b border-[#262626]">
                 <input
                   type="email"
                   required
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="請輸入註冊信箱"
-                  className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-4 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                  placeholder="用戶名稱、手機號碼或電子郵件地址"
+                  className="w-full bg-transparent px-4 py-3.5 text-xs text-white placeholder-neutral-500 focus:outline-none transition-colors"
                 />
               </div>
-            </div>
-
-            <div className="space-y-1.5 text-left">
-              <label className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider block">
-                安全密碼 (Password)
-              </label>
-              <div className="relative flex items-center">
-                <Lock className="absolute left-3 h-3.5 w-3.5 text-neutral-550" />
+              <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="請輸入 6 位數以上安全密碼"
-                  className="w-full rounded-lg bg-black border border-[#262626] pl-9.5 pr-9.5 py-2.5 text-xs text-white placeholder-neutral-600 focus:border-white focus:outline-none transition-colors"
+                  placeholder="密碼"
+                  className="w-full bg-transparent px-4 py-3.5 text-xs text-white placeholder-neutral-500 focus:outline-none transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors cursor-pointer"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
             {/* Error Alert */}
             {authError && (
-              <div className="flex items-start gap-2 rounded-lg bg-rose-950/40 border border-rose-900/30 p-3 text-xs text-rose-450 text-left animate-fade-in">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="w-full flex items-start gap-2 rounded bg-rose-950/40 border border-rose-900/30 p-3 text-[11px] text-rose-450 text-left mb-4">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                 <span>{authError}</span>
               </div>
             )}
@@ -662,27 +668,59 @@ export default function Home() {
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full rounded-lg bg-white text-black py-2.5 text-xs font-bold hover:bg-neutral-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full rounded-xl bg-white text-black py-3.5 text-[13px] font-bold hover:bg-neutral-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {authLoading ? (
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
               ) : authMode === 'login' ? (
-                '登入分身帳戶'
+                '登入'
               ) : (
-                '註冊並建立分身'
+                '註冊'
               )}
             </button>
           </form>
 
+          {authMode === 'login' && (
+            <button className="mt-5 text-[11px] text-neutral-500 hover:text-white transition-colors cursor-pointer">
+              忘記密碼？
+            </button>
+          )}
+
+          <div className="w-full flex items-center gap-3 my-6">
+            <div className="flex-1 h-[1px] bg-[#262626]"></div>
+            <span className="text-[10px] font-bold text-neutral-600 uppercase">或</span>
+            <div className="flex-1 h-[1px] bg-[#262626]"></div>
+          </div>
+
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-transparent border border-[#262626] py-3.5 text-xs font-bold text-neutral-400 hover:bg-[#121212] hover:text-white transition-all cursor-not-allowed opacity-60"
+            disabled
+          >
+            <div className="h-5 w-5 rounded-md bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
+              <div className="h-3.5 w-3.5 rounded-sm border-2 border-white flex items-center justify-center">
+                <div className="h-1 w-1 rounded-full bg-white"></div>
+              </div>
+            </div>
+            使用 Instagram 帳號登入 (即將推出)
+          </button>
+
+          <button 
+            onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
+            className="mt-8 text-[11px] text-neutral-500 hover:text-white transition-colors cursor-pointer"
+          >
+            {authMode === 'login' ? '還沒有帳號嗎？註冊' : '已經有帳號了嗎？登入'}
+          </button>
+
           {/* Database Setup Info (Warning Banner if not configured) */}
           {!isSupabaseConfigured && (
-            <div className="text-[10px] text-amber-500 bg-amber-950/20 border border-amber-900/30 rounded-lg p-3 text-left space-y-1 mt-2">
+            <div className="w-full text-[10px] text-amber-500 bg-amber-950/20 border border-amber-900/30 rounded-lg p-3 text-left space-y-1 mt-6">
               <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
                 <AlertCircle className="h-3.5 w-3.5" />
                 <span>資料庫未設定 (Local DB Disconnected)</span>
               </div>
               <p className="text-neutral-400 leading-normal">
-                本系統不提供 any 假資料模擬。請先於專案根目錄配置 `.env.local` 檔案以連接您的真實 Supabase 雲端資料庫。
+                本系統不提供假資料模擬。請先於專案根目錄配置 `.env.local` 檔案以連接您的真實 Supabase 雲端資料庫。
               </p>
             </div>
           )}
@@ -832,6 +870,54 @@ export default function Home() {
             </div>
           )}
 
+          {/* 社群專屬標頭 (若進入社群模式) */}
+          {activeTab === 'community' && selectedCommunity && (
+            <div className="bg-[#121212] border border-[#1f1f1f] rounded-2xl p-5 relative overflow-hidden animate-fade-in flex flex-col gap-4">
+              <div className="flex items-start gap-4">
+                {selectedCommunity.logo_url ? (
+                  <img src={selectedCommunity.logo_url} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-[#262626]" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-neutral-900 border border-[#262626] flex items-center justify-center text-xl font-black text-neutral-600">
+                    {selectedCommunity.name.substring(0, 1).replace('#', '') || 'C'}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h1 className="text-lg font-black text-white">{selectedCommunity.name}</h1>
+                    {selectedCommunity.is_official && (
+                      <span className="bg-blue-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold">官方</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-neutral-400 mb-3">{selectedCommunity.description}</p>
+                  
+                  <div className="flex items-center gap-4 text-[10px] text-neutral-500 font-medium">
+                    <span className="flex items-center gap-1"><User className="w-3 h-3"/> 總人數: {Math.floor(Math.random() * 5000) + 100}</span>
+                    <span className="flex items-center gap-1 text-emerald-500"><Sparkles className="w-3 h-3"/> 線上: {Math.floor(Math.random() * 500) + 10}</span>
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> 創立於: {new Date(selectedCommunity.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end border-t border-[#1f1f1f] pt-4 mt-1">
+                {joinedCommunities.some(c => c.id === selectedCommunity.id) ? (
+                  <button 
+                    onClick={() => handleLeaveCommunity(selectedCommunity.id)}
+                    className="px-4 py-1.5 text-xs font-bold rounded-lg border border-[#262626] text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
+                  >
+                    退出社群
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => handleJoinCommunity(selectedCommunity.id)}
+                    className="px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-black hover:bg-neutral-200 transition-colors"
+                  >
+                    加入社群
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 移動端分頁分欄快捷切換 (僅於窄螢幕顯示) */}
           <section className="flex items-center justify-between border-b border-[#262626] pb-2 md:hidden">
             <div className="flex items-center gap-3 overflow-x-auto">
@@ -925,25 +1011,73 @@ export default function Home() {
         {/* Right Column: 桌面版話題標籤篩選與分身宣告手冊 */}
         <aside className="hidden lg:flex flex-col w-56 shrink-0 sticky top-24 gap-6 text-left">
           
-          {/* 熱門標籤清單 */}
-          <div className="bg-[#121212] rounded-2xl p-5 space-y-4">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
-              熱門話題標籤
-            </span>
-            <div className="flex flex-col gap-2">
-              {hotTopics.map((topic) => (
-                <button
-                  key={topic}
-                  onClick={() => setSearchQuery(topic)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-colors truncate block cursor-pointer ${
-                    searchQuery === topic
-                      ? 'bg-neutral-800 text-white'
-                      : 'bg-transparent text-neutral-400 hover:text-white hover:bg-neutral-900'
-                  }`}
-                >
-                  {topic}
-                </button>
-              ))}
+          {/* 探索社群與已加入 */}
+          <div className="bg-[#121212] rounded-2xl p-5 space-y-6">
+            
+            {joinedCommunities.length > 0 && (
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
+                  已加入社群
+                </span>
+                <div className="flex flex-col gap-1">
+                  {joinedCommunities.map((community) => (
+                    <button
+                      key={`joined-${community.id}`}
+                      onClick={() => { setSelectedCommunity(community); setActiveTab('community'); }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                        selectedCommunity?.id === community.id && activeTab === 'community'
+                          ? 'bg-neutral-800 text-white'
+                          : 'bg-transparent text-neutral-400 hover:text-white hover:bg-neutral-900'
+                      }`}
+                    >
+                      {community.logo_url ? (
+                        <img src={community.logo_url} alt="Logo" className="w-5 h-5 rounded-md object-cover border border-[#262626]" />
+                      ) : (
+                        <div className="w-5 h-5 rounded-md bg-neutral-950 border border-[#262626] flex items-center justify-center text-[9px] font-black text-neutral-600">
+                          {community.name.substring(0, 1).replace('#', '') || 'C'}
+                        </div>
+                      )}
+                      <span className="text-[11px] font-bold truncate flex-1 text-left">{community.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
+                推薦探索社群
+              </span>
+              <div className="flex flex-col gap-1">
+                {communities.filter(c => !joinedCommunities.find(j => j.id === c.id)).map((community) => (
+                  <button
+                    key={`explore-${community.id}`}
+                    onClick={() => { setSelectedCommunity(community); setActiveTab('community'); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
+                      selectedCommunity?.id === community.id && activeTab === 'community'
+                        ? 'bg-neutral-800 text-white'
+                        : 'bg-transparent text-neutral-400 hover:text-white hover:bg-neutral-900'
+                    }`}
+                  >
+                    {community.logo_url ? (
+                      <img src={community.logo_url} alt="Logo" className="w-5 h-5 rounded-md object-cover border border-[#262626]" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-md bg-neutral-950 border border-[#262626] flex items-center justify-center text-[9px] font-black text-neutral-600">
+                        {community.name.substring(0, 1).replace('#', '') || 'C'}
+                      </div>
+                    )}
+                    <span className="text-[11px] font-bold truncate flex-1 text-left">{community.name}</span>
+                    {community.is_official && (
+                      <span className="bg-blue-600/20 text-blue-500 text-[8px] px-1 py-0.5 rounded border border-blue-600/30">官方</span>
+                    )}
+                  </button>
+                ))}
+                {communities.length === 0 && (
+                  <div className="text-[10px] text-neutral-600 text-center py-2">
+                    目前沒有可探索的社群
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -975,6 +1109,8 @@ export default function Home() {
           currentUser={currentUser}
           isOpen={isPostModalOpen}
           onClose={() => setIsPostModalOpen(false)}
+          communities={communities}
+          defaultCommunityId={selectedCommunity?.id}
           onSubmit={handleCreatePost}
         />
       )}

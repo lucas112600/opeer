@@ -200,27 +200,45 @@ export default function StoryGenerator({
       qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(shareUrl)}&color=${qrColor}&bgcolor=${qrBg}`;
 
       await new Promise<void>((resolve) => {
-        qrImg.onload = () => {
-          ctx.fillStyle = isDark ? '#121212' : '#f5f5f5';
-          ctx.strokeStyle = isDark ? '#262626' : '#e5e5e5';
-          ctx.fillRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
-          ctx.strokeRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
-
-          ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-
-          ctx.fillStyle = isDark ? '#777777' : '#888888';
-          ctx.font = '700 18px -apple-system, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('掃描參與本話題投票 ‧ OPPER.SOCIAL', 540, qrY + qrSize + 40);
+        const timeoutId = setTimeout(() => {
+          qrImg.onload = null;
+          qrImg.onerror = null;
+          drawFallback();
           resolve();
-        };
-        qrImg.onerror = () => {
+        }, 3000);
+
+        const drawFallback = () => {
           ctx.fillStyle = isDark ? '#121212' : '#f5f5f5';
           ctx.fillRect(qrX, qrY, qrSize, qrSize);
           ctx.fillStyle = isDark ? '#777777' : '#888888';
           ctx.font = '700 18px -apple-system, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('搜尋 OPPER 參與本話題審判', 540, qrY + qrSize + 40);
+        };
+
+        qrImg.onload = () => {
+          clearTimeout(timeoutId);
+          try {
+            ctx.fillStyle = isDark ? '#121212' : '#f5f5f5';
+            ctx.strokeStyle = isDark ? '#262626' : '#e5e5e5';
+            ctx.fillRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
+            ctx.strokeRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
+
+            ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+            ctx.fillStyle = isDark ? '#777777' : '#888888';
+            ctx.font = '700 18px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('掃描參與本話題投票 ‧ OPPER.SOCIAL', 540, qrY + qrSize + 40);
+          } catch (e) {
+            console.error('QR draw error', e);
+            drawFallback();
+          }
+          resolve();
+        };
+        qrImg.onerror = () => {
+          clearTimeout(timeoutId);
+          drawFallback();
           resolve();
         };
       });

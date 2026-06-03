@@ -32,6 +32,24 @@ export interface Post {
   image_url?: string | null; // 話題附加照片網址或 Base64 字串
   video_url?: string | null; // 話題附加影片網址或 Base64 字串
   audio_url?: string | null; // 話題語音錄製 Base64 字串
+  community_id?: string | null; // 所屬社群 ID
+}
+
+export interface Community {
+  id: string;
+  name: string;
+  description: string;
+  logo_url: string;
+  category: string;
+  created_by: string | null;
+  is_official: boolean;
+  created_at: string;
+}
+
+export interface CommunityMember {
+  community_id: string;
+  user_id: string;
+  joined_at: string;
 }
 
 export interface Vote {
@@ -318,12 +336,16 @@ export const db = {
   },
 
   // 獲取線上所有話題發文
-  getPosts: async (orderBy: 'latest' | 'popular' | 'algorithm' = 'latest'): Promise<Post[]> => {
+  getPosts: async (orderBy: 'latest' | 'popular' | 'algorithm' = 'latest', communityId?: string): Promise<Post[]> => {
     if (!isSupabaseConfigured) return [];
 
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, comments(id)');
+    let query = supabase.from('posts').select('*, comments(id)');
+    
+    if (communityId) {
+      query = query.eq('community_id', communityId);
+    }
+
+    const { data, error } = await query;
       
     if (error) throw error;
     
@@ -356,7 +378,8 @@ export const db = {
     isAnonymous: boolean,
     imageUrl?: string,
     videoUrl?: string,
-    audioUrl?: string
+    audioUrl?: string,
+    communityId?: string
   ): Promise<Post> => {
     const formattedTopic = topic.startsWith('#') ? topic.trim() : `#${topic.trim()}`;
     const hasSensitive = SENSITIVE_WORDS.some(word => content.includes(word));
@@ -376,6 +399,7 @@ export const db = {
             image_url: imageUrl || null,
             video_url: videoUrl || null,
             audio_url: audioUrl || null,
+            community_id: communityId || null,
           }
        : {
             author_id: author.id,
@@ -389,6 +413,7 @@ export const db = {
             image_url: imageUrl || null,
             video_url: videoUrl || null,
             audio_url: audioUrl || null,
+            community_id: communityId || null,
           };
 
     const { data, error } = await supabase
@@ -725,5 +750,78 @@ export const db = {
       .getPublicUrl(uniqueName);
       
     return publicUrl;
+  },
+
+  // --- 社群 (Communities) 管理 ---
+
+  getCommunities: async (): Promise<Community[]> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    const { data, error } = await supabase
+      .from('communities')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Community[];
+  },
+
+  getJoinedCommunities: async (userId: string): Promise<Community[]> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    const { data, error } = await supabase
+      .from('community_members')
+      .select('community_id, communities(*)')
+      .eq('user_id', userId);
+    if (error) throw error;
+    return data.map((item: any) => item.communities as Community);
+  },
+
+  joinCommunity: async (communityId: string, userId: string): Promise<void> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    const { error } = await supabase
+      .from('community_members')
+      .insert([{ community_id: communityId, user_id: userId }]);
+    if (error && error.code !== '23505') throw error; // Ignore duplicate key if already joined
+  },
+
+  leaveCommunity: async (communityId: string, userId: string): Promise<void> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    const { error } = await supabase
+      .from('community_members')
+      .delete()
+      .eq('community_id', communityId)
+      .eq('user_id', userId);
+    if (error) throw error;
+  },
+
+  createCommunity: async (
+    name: string,
+    description: string,
+    logoUrl: string,
+    category: string,
+    userId: string | null,
+    isOfficial: boolean
+  ): Promise<Community> => {
+    if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
+    const { data, error } = await supabase
+      .from('communities')
+      .insert([{
+        name,
+        description,
+        logo_url: logoUrl,
+        category,
+        created_by: userId,
+        is_official: isOfficial
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    
+    // Creator auto-joins
+    if (userId) {
+      await supabase
+        .from('community_members')
+        .insert([{ community_id: data.id, user_id: userId }]);
+    }
+    
+    return data as Community;
   }
 };

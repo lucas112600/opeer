@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown, Share2, Trash2, MessageSquare, EyeOff, Globe, AlertCircle, Play, Pause } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Share, Trash2, MessageSquare, EyeOff, Globe, AlertCircle, Play, Pause } from 'lucide-react';
 import { Post, Profile, Comment, db } from '../lib/db';
 
 interface PostCardProps {
@@ -55,6 +55,51 @@ export default function PostCard({
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [audioInstance, setAudioInstance] = useState<HTMLAudioElement | null>(null);
+
+  // 樂觀更新 (Optimistic UI) 狀態
+  const [optimisticVote, setOptimisticVote] = useState<'up' | 'down' | null>(userVote || null);
+  const [optimisticUpvotes, setOptimisticUpvotes] = useState<number>(post.upvotes || 0);
+  const [optimisticDownvotes, setOptimisticDownvotes] = useState<number>(post.downvotes || 0);
+
+  // 當外部資料更新時同步回傳
+  useEffect(() => {
+    setOptimisticVote(userVote || null);
+    setOptimisticUpvotes(post.upvotes || 0);
+    setOptimisticDownvotes(post.downvotes || 0);
+  }, [userVote, post.upvotes, post.downvotes]);
+
+  const handleOptimisticVote = (type: 'up' | 'down') => {
+    if (!currentUser) {
+      alert('請先設定分身才能參與互動');
+      return;
+    }
+    
+    let newVote = optimisticVote;
+    let newUp = optimisticUpvotes;
+    let newDown = optimisticDownvotes;
+
+    if (optimisticVote === type) {
+      // 取消投票
+      newVote = null;
+      if (type === 'up') newUp = Math.max(0, newUp - 1);
+      if (type === 'down') newDown = Math.max(0, newDown - 1);
+    } else {
+      // 改變投票或新增投票
+      if (optimisticVote === 'up') newUp = Math.max(0, newUp - 1);
+      if (optimisticVote === 'down') newDown = Math.max(0, newDown - 1);
+      
+      newVote = type;
+      if (type === 'up') newUp += 1;
+      if (type === 'down') newDown += 1;
+    }
+
+    setOptimisticVote(newVote);
+    setOptimisticUpvotes(newUp);
+    setOptimisticDownvotes(newDown);
+
+    // 呼叫實際的 API
+    onVote(post.id, type);
+  };
 
   useEffect(() => {
     if (post.audio_url) {
@@ -112,16 +157,10 @@ export default function PostCard({
     // 初始載入時，將資料庫觀看次數 +1
     if (post.id) {
       db.incrementPostViews(post.id, post.views || 0);
+      // 只在前端象徵性加 1，不隨機跳變，確保與重新整理後一致
+      setLiveViews(prev => prev + 1);
     }
-  }, [post.id]); // 只在元件初次掛載 (或 post.id 改變) 時執行一次寫入
-
-  useEffect(() => {
-    // 實時動態跳變特效 (每 4~8 秒隨機加 1~3 次)
-    const interval = setInterval(() => {
-      setLiveViews(prev => prev + Math.floor(Math.random() * 3) + 1);
-    }, Math.random() * 4000 + 4000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [post.id]);
 
   // 1. 卡片掛載時自動加載該話題的留言數與清單
   useEffect(() => {
@@ -330,16 +369,15 @@ export default function PostCard({
             </div>
           ) : (
             <>
-              {/* 話題主題標籤 (#感情公審...) */}
-              <div className="mb-2">
-                <span 
-                  id={`tag-${post.id}`}
-                  className="text-[10px] font-bold text-neutral-300 bg-neutral-900 px-2 py-0.5 rounded border border-[#262626] hover:bg-neutral-800 transition-colors inline-block"
-                >
-                  {post.topic}
-                </span>
-              </div>
-
+              {/* 話題標籤 (扁平文字樣式) */}
+              {post.topic && (
+                <div className="mb-2">
+                  <span className="text-[11px] font-bold text-blue-500 hover:text-white hover:underline transition-colors inline-block cursor-pointer">
+                    #{post.topic.replace('#', '')}
+                  </span>
+                </div>
+              )}
+              
               {/* 主文內容 */}
               <p className="text-xs text-neutral-200 leading-relaxed break-words whitespace-pre-wrap pr-1 mb-2 select-text">
                 {post.content.length > 280 && !isExpanded ? `${post.content.substring(0, 280)}...` : post.content}
@@ -420,29 +458,29 @@ export default function PostCard({
             {/* 👍 挺他 按鈕 */}
             <button
               id={`btn-upvote-${post.id}`}
-              onClick={() => onVote(post.id, 'up')}
+              onClick={() => handleOptimisticVote('up')}
               className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
-                userVote === 'up'
+                optimisticVote === 'up'
                   ? 'text-white fill-white'
                   : 'text-neutral-500 hover:text-white'
               }`}
             >
-              <ThumbsUp className={`h-4 w-4 ${userVote === 'up' ? 'fill-white' : ''}`} />
-              <span>{post.upvotes > 0 ? post.upvotes : ''}</span>
+              <ThumbsUp className={`h-4 w-4 ${optimisticVote === 'up' ? 'fill-white' : ''}`} />
+              <span>{optimisticUpvotes > 0 ? optimisticUpvotes : ''}</span>
             </button>
 
             {/* 👎 瞎爆 按鈕 */}
             <button
               id={`btn-downvote-${post.id}`}
-              onClick={() => onVote(post.id, 'down')}
+              onClick={() => handleOptimisticVote('down')}
               className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
-                userVote === 'down'
+                optimisticVote === 'down'
                   ? 'text-white fill-white'
                   : 'text-neutral-500 hover:text-white'
               }`}
             >
-              <ThumbsDown className={`h-4 w-4 ${userVote === 'down' ? 'fill-white' : ''}`} />
-              <span>{post.downvotes > 0 ? post.downvotes : ''}</span>
+              <ThumbsDown className={`h-4 w-4 ${optimisticVote === 'down' ? 'fill-white' : ''}`} />
+              <span>{optimisticDownvotes > 0 ? optimisticDownvotes : ''}</span>
             </button>
 
             {/* 留言數 */}
@@ -462,7 +500,7 @@ export default function PostCard({
               className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-500 hover:text-white transition-colors cursor-pointer ml-auto"
               title="匯出分享圖卡"
             >
-              <Share2 className="h-4 w-4" />
+              <Share className="h-4 w-4" />
             </button>
 
           </div>

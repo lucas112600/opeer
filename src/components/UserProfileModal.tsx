@@ -127,7 +127,7 @@ export default function UserProfileModal({
                 <div className="h-16 w-16 rounded-full border border-[#1f1f1f] bg-[#121212] flex items-center justify-center mb-4">
                   <Lock className="h-6 w-6 text-neutral-500" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">🔒 這是非公開帳號</h3>
+                <h3 className="text-base font-bold text-white mb-2">這是非公開帳號</h3>
                 <p className="text-xs text-neutral-500 text-center max-w-sm leading-relaxed">
                   該帳戶的個人檔案是不公開的。只有被允許的跟隨者可以查看其話題串與回覆。
                 </p>
