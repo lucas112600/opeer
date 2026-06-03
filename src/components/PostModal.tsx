@@ -179,7 +179,7 @@ export default function PostModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !topic.trim()) return;
+    if (!content.trim()) return;
 
     setIsSubmitting(true);
     setErrorMsg('');
@@ -207,7 +207,8 @@ export default function PostModal({
         }
       }
 
-      const cleanTopic = topic.trim();
+      const defaultTopic = communityId ? (communities.find(c => c.id === communityId)?.name || '一般類別') : '一般類別';
+      const cleanTopic = topic.trim() || defaultTopic;
       const finalTopic = cleanTopic.startsWith('#') ? cleanTopic : `#${cleanTopic}`;
 
       let finalImageUrl = imageUrl;

@@ -472,11 +472,12 @@ export default function Home() {
     isAnonymous: boolean, 
     imageUrl?: string,
     videoUrl?: string,
-    audioUrl?: string
+    audioUrl?: string,
+    communityId?: string
   ) => {
     if (!currentUser) return;
     try {
-      const newPost = await db.createPost(currentUser, content, topic, isAnonymous, imageUrl, videoUrl, audioUrl);
+      const newPost = await db.createPost(currentUser, content, topic, isAnonymous, imageUrl, videoUrl, audioUrl, communityId);
       setPosts(prev => [newPost, ...prev]);
       setIsPostModalOpen(false);
       fetchNotifications();
