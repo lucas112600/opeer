@@ -233,7 +233,7 @@ export default function PostCard({
 
   return (
     <article 
-      className="relative flex flex-col p-6 mb-6 rounded-[2rem] bg-gradient-to-b from-white/[0.03] to-white/[0.01] backdrop-blur-2xl border border-white/[0.05] shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:bg-white/[0.04] hover:border-white/[0.1] hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgb(0,0,0,0.2)] transition-all duration-500 ease-out text-left group"
+      className="flex flex-col pt-5 pb-5 relative border-b border-neutral-900 last:border-b-0 text-left bg-transparent"
       id={`postcard-${post.id}`}
     >
       
