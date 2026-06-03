@@ -346,11 +346,11 @@ export default function PostModal({
                       <select
                         value={communityId}
                         onChange={(e) => setCommunityId(e.target.value)}
-                        className="bg-transparent text-sm font-bold text-white placeholder-neutral-600 focus:outline-none flex-1"
+                        className="bg-[#1f1f1f] text-sm font-bold text-white placeholder-neutral-600 focus:outline-none flex-1 p-1.5 rounded-lg border border-[#262626]"
                       >
-                        <option value="">選擇要發布的社群 (選填)</option>
+                        <option value="" className="text-neutral-400">選擇要發布的社群 (選填)</option>
                         {communities.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
+                          <option key={c.id} value={c.id} className="text-white">{c.name}</option>
                         ))}
                       </select>
                     )}

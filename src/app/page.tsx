@@ -47,7 +47,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   // 排序狀態與投票對決
-  const [activeTab, setActiveTab] = useState<'algorithm' | 'latest' | 'popular' | 'community'>('algorithm');
+  const [activeTab, setActiveTab] = useState<'algorithm' | 'latest' | 'popular' | 'community' | 'explore'>('algorithm');
   const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down' | null>>({});
 
   // 社群狀態
@@ -282,6 +282,9 @@ export default function Home() {
       loadMemberCount();
     }
     
+    if (activeTab === 'explore') {
+      return;
+    }
     fetchFeed(activeTab);
   }, [activeTab, selectedCommunity, fetchFeed, fetchNotifications]);
 
@@ -772,7 +775,7 @@ export default function Home() {
                 }`}
               >
                 {c.logo_url ? (
-                  <img src={c.logo_url} alt={c.name} className="w-12 h-12 rounded-xl object-cover mb-3" />
+                  <img src={c.logo_url} alt={c.name} className="w-12 h-12 rounded-xl object-contain bg-[#1f1f1f] p-1.5 mb-3" />
                 ) : (
                   <div className="w-12 h-12 rounded-xl bg-neutral-900 border border-[#262626] mb-3" />
                 )}
@@ -860,6 +863,17 @@ export default function Home() {
                 <Flame className="h-3 w-3" />
                 <span>熱門話題</span>
               </button>
+              <button 
+                onClick={() => { setActiveTab('explore'); setSearchQuery(''); setSelectedCommunity(null); }}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors border ${
+                  activeTab === 'explore' && !searchQuery && !selectedCommunity
+                    ? 'bg-white text-black border-white' 
+                    : 'bg-[#121212] text-neutral-400 border-[#262626] hover:bg-[#1a1a1a] hover:text-white'
+                }`}
+              >
+                <Search className="h-3 w-3" />
+                <span>探索社群</span>
+              </button>
               
               <div className="w-[1px] h-4 bg-[#262626] mx-1"></div>
 
@@ -874,7 +888,7 @@ export default function Home() {
                       : 'bg-transparent text-neutral-400 border-[#262626] hover:bg-[#121212] hover:text-white'
                   }`}
                 >
-                  {c.logo_url && <img src={c.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover" />}
+                  {c.logo_url && <img src={c.logo_url} alt="" className="w-3.5 h-3.5 rounded object-contain bg-[#1f1f1f] p-0.5" />}
                   <span>{c.name}</span>
                 </button>
               ))}
@@ -914,7 +928,7 @@ export default function Home() {
             <div className="bg-[#121212] border border-[#1f1f1f] rounded-2xl p-5 relative overflow-hidden animate-fade-in flex flex-col gap-4">
               <div className="flex items-start gap-4">
                 {selectedCommunity.logo_url ? (
-                  <img src={selectedCommunity.logo_url} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-[#262626]" />
+                  <img src={selectedCommunity.logo_url} alt="Logo" className="w-16 h-16 rounded-xl object-contain bg-[#1f1f1f] p-1.5 border border-[#262626]" />
                 ) : (
                   <div className="w-16 h-16 rounded-xl bg-neutral-900 border border-[#262626] flex items-center justify-center text-xl font-black text-neutral-600">
                     {selectedCommunity.name.substring(0, 1).replace('#', '') || 'C'}
@@ -993,15 +1007,49 @@ export default function Home() {
               >
                 熱門公審
               </button>
+              <button
+                id="tab-explore"
+                onClick={() => { setActiveTab('explore'); setSearchQuery(''); }}
+                className={`pb-3 text-xs font-black transition-colors border-b-2 whitespace-nowrap px-1 ${
+                  activeTab === 'explore' && !searchQuery
+                    ? 'text-white border-white'
+                    : 'text-neutral-500 border-transparent hover:text-neutral-300'
+                }`}
+              >
+                探索社群
+              </button>
             </div>
             <div className="text-[10px] text-neutral-500 flex-shrink-0 pl-2">
               共 {filteredPosts.length} 篇
             </div>
           </section>
 
-          {/* 串文卡片清單 */}
+          {/* 串文卡片清單 / 社群總覽 */}
           <section className="flex flex-col gap-4">
-            {isDataLoading ? (
+            {activeTab === 'explore' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pb-12">
+                {communities.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setActiveTab('community');
+                      setSelectedCommunity(c);
+                    }}
+                    className="flex flex-col items-center p-4 rounded-2xl bg-[#121212] border border-[#262626] hover:bg-[#1a1a1a] transition-colors text-center group"
+                  >
+                    {c.logo_url ? (
+                      <img src={c.logo_url} alt={c.name} className="w-14 h-14 rounded-xl object-contain bg-[#1f1f1f] p-1.5 mb-3 group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-neutral-900 border border-[#262626] mb-3 flex items-center justify-center text-xl font-black text-neutral-600 group-hover:scale-105 transition-transform">
+                        {c.name.substring(0, 1)}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-white mb-1 line-clamp-1">{c.name}</span>
+                    <span className="text-[10px] text-neutral-500 line-clamp-2">{c.description}</span>
+                  </button>
+                ))}
+              </div>
+            ) : isDataLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-900 border-t-white" />
                 <span className="text-xs text-neutral-500 font-bold">正在讀取審判話題...</span>
