@@ -410,17 +410,17 @@ export default function SettingsModal({
                   </div>
                   <div className="flex-1">
                     <span className="text-[10px] text-neutral-500 block mb-1.5">上傳個人相片或生成隨機幾何像素頭像</span>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-4 mt-2">
                       <button
                         type="button"
                         onClick={handleRandomAvatar}
-                        className="flex items-center gap-1.5 rounded bg-neutral-900 border border-[#262626] text-neutral-300 px-3 py-1.5 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors cursor-pointer"
+                        className="flex items-center gap-1 text-[11px] font-bold text-neutral-400 hover:text-white hover:underline transition-colors cursor-pointer"
                       >
                         <RefreshCw className="h-3 w-3" />
                         <span>隨機生成</span>
                       </button>
 
-                      <label className="flex items-center gap-1.5 rounded bg-neutral-900 border border-[#262626] text-neutral-300 px-3 py-1.5 text-xs font-bold hover:bg-neutral-850 hover:text-white transition-colors cursor-pointer select-none">
+                      <label className="flex items-center gap-1 text-[11px] font-bold text-neutral-400 hover:text-white hover:underline transition-colors cursor-pointer select-none">
                         <Upload className="h-3 w-3" />
                         <span>上傳自訂頭像</span>
                         <input
