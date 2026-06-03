@@ -29,6 +29,7 @@ import PostCard from '../components/PostCard';
 import PostModal from '../components/PostModal';
 import SettingsModal from '../components/SettingsModal';
 import StoryGenerator from '../components/StoryGenerator';
+import UserProfileModal from '../components/UserProfileModal';
 
 interface PendingAction {
   type: 'delete_post' | 'delete_comment' | 'save_profile' | 'reset_all' | 'sign_out';
@@ -50,6 +51,7 @@ export default function Home() {
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [selectedPostForShare, setSelectedPostForShare] = useState<Post | null>(null);
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   
   const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
   const [appError, setAppError] = useState<string>('');
@@ -889,6 +891,7 @@ export default function Home() {
                   onVote={handleVote}
                   onShare={(p) => setSelectedPostForShare(p)}
                   onDelete={handleDeletePost}
+                  onViewProfile={(uid) => setViewingUserId(uid)}
                   onDeleteComment={(commentId, executeDelete) => {
                     customConfirm(
                       '刪除留言確認', 
@@ -995,6 +998,19 @@ export default function Home() {
           post={selectedPostForShare}
           isOpen={!!selectedPostForShare}
           onClose={() => setSelectedPostForShare(null)}
+        />
+      )}
+
+      {/* 用戶主頁彈窗 */}
+      {viewingUserId && (
+        <UserProfileModal
+          userId={viewingUserId}
+          currentUser={currentUser}
+          onClose={() => setViewingUserId(null)}
+          onVote={handleVote}
+          onShare={(p) => setSelectedPostForShare(p)}
+          onDeletePost={handleDeletePost}
+          onViewProfile={(uid) => setViewingUserId(uid)}
         />
       )}
 

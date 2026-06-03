@@ -14,6 +14,7 @@ interface PostCardProps {
   onDeleteComment?: (commentId: string, onSuccess: () => void) => void;
   showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
   showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
+  onViewProfile?: (userId: string) => void;
 }
 
 export default function PostCard({
@@ -26,6 +27,7 @@ export default function PostCard({
   onDeleteComment,
   showAlert,
   showConfirm,
+  onViewProfile,
 }: PostCardProps) {
   const alert = (message: string) => {
     if (showAlert) {
@@ -102,6 +104,24 @@ export default function PostCard({
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // 實時觀看次數狀態與跳變邏輯
+  const [liveViews, setLiveViews] = useState<number>(post.views || 0);
+
+  useEffect(() => {
+    // 初始載入時，將資料庫觀看次數 +1
+    if (post.id) {
+      db.incrementPostViews(post.id, post.views || 0);
+    }
+  }, [post.id]); // 只在元件初次掛載 (或 post.id 改變) 時執行一次寫入
+
+  useEffect(() => {
+    // 實時動態跳變特效 (每 4~8 秒隨機加 1~3 次)
+    const interval = setInterval(() => {
+      setLiveViews(prev => prev + Math.floor(Math.random() * 3) + 1);
+    }, Math.random() * 4000 + 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 1. 卡片掛載時自動加載該話題的留言數與清單
   useEffect(() => {
@@ -213,7 +233,7 @@ export default function PostCard({
 
   return (
     <article 
-      className="threads-card flex flex-col rounded-xl p-5 relative border border-[#262626] text-left bg-[#121212]"
+      className="threads-card flex flex-col pt-6 pb-6 relative border-b border-[#161616] last:border-b-0 text-left bg-transparent"
       id={`postcard-${post.id}`}
     >
       
@@ -222,14 +242,23 @@ export default function PostCard({
         {/* Column 1: 左側頭像與 Threads 經典垂直執行線 */}
         <div className="mr-3.5 flex flex-col items-center flex-shrink-0">
           {/* 頭像 */}
-          <div className="relative h-9 w-9 overflow-hidden rounded-full border border-[#262626] bg-neutral-950">
+          <button
+            onClick={() => {
+              if (onViewProfile && !post.is_anonymous && post.author_id) {
+                onViewProfile(post.author_id);
+              }
+            }}
+            className={`relative h-9 w-9 overflow-hidden rounded-full border border-[#262626] bg-neutral-950 ${
+              !post.is_anonymous && post.author_id ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'
+            }`}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={post.author_avatar}
               alt={post.author_name}
               className="h-full w-full object-cover"
             />
-          </div>
+          </button>
 
           {/* 垂直線路引導 (當展開留言時，灰線會筆直拉長以串聯每一條留言的頭像) */}
           <div className={`w-[1.5px] flex-1 bg-[#262626] my-2 rounded-full min-h-[40px] ${
@@ -242,26 +271,27 @@ export default function PostCard({
           
           {/* 卡片標頭：名稱、時間 */}
           <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-1.5 min-w-0">
+            <button 
+              onClick={() => {
+                if (onViewProfile && !post.is_anonymous && post.author_id) {
+                  onViewProfile(post.author_id);
+                }
+              }}
+              className={`flex items-center gap-1.5 min-w-0 ${!post.is_anonymous && post.author_id ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
+            >
               <span className="text-xs font-bold truncate block text-neutral-200">
                 {post.author_name}
               </span>
               <span className="text-[10px] text-neutral-500 truncate block">
                 @{post.author_username}
               </span>
-            </div>
+            </button>
 
             <div className="flex items-center gap-2 flex-shrink-0">
-              {post.algorithm_score !== undefined && (
-                <span 
-                  className="text-[9px] text-neutral-500 bg-neutral-900 border border-[#202020] px-1.5 py-0.5 rounded flex items-center gap-1 font-mono tracking-tight mr-1"
-                  title="演算法熱度分值 = ((挺你*1.5) - (瞎爆*0.5) + (留言數*3.0) + 10) / (小時+2)^1.2"
-                >
-                  <span>✨ 熱度</span>
-                  <span className="font-bold text-neutral-300">{post.algorithm_score.toFixed(1)}</span>
-                </span>
-              )}
-              <span className="text-[10px] text-neutral-500">
+              <span className="text-[9px] text-neutral-500 flex items-center gap-1">
+                👁️ <span>{liveViews.toLocaleString()} 次觀看</span>
+              </span>
+              <span className="text-[10px] text-neutral-500 ml-1">
                 {formatTime(post.created_at)}
               </span>
               
@@ -385,60 +415,54 @@ export default function PostCard({
           )}
 
           {/* 靜態審判按鈕與功能操作列 */}
-          <div className="flex items-center justify-between border-t border-[#262626] pt-3 flex-wrap sm:flex-nowrap gap-2">
+          <div className="flex items-center justify-start pt-3 gap-6">
             
-            {/* 左側：👍 / 👎 審判與留言數 */}
-            <div className="flex items-center gap-3">
-              {/* 👍 挺他 按鈕 */}
-              <button
-                id={`btn-upvote-${post.id}`}
-                onClick={() => onVote(post.id, 'up')}
-                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-bold border transition-colors ${
-                  userVote === 'up'
-                    ? 'text-black bg-white border-white'
-                    : 'text-neutral-400 bg-neutral-950 border-[#262626] hover:text-white hover:bg-neutral-900'
-                }`}
-              >
-                <ThumbsUp className="h-3 w-3" />
-                <span>挺他</span>
-                <span className={`text-[9px] pl-0.5 ${userVote === 'up' ? 'text-black/70' : 'text-neutral-500'}`}>{post.upvotes}</span>
-              </button>
+            {/* 👍 挺他 按鈕 */}
+            <button
+              id={`btn-upvote-${post.id}`}
+              onClick={() => onVote(post.id, 'up')}
+              className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                userVote === 'up'
+                  ? 'text-white fill-white'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              <ThumbsUp className={`h-4 w-4 ${userVote === 'up' ? 'fill-white' : ''}`} />
+              <span>{post.upvotes > 0 ? post.upvotes : ''}</span>
+            </button>
 
-              {/* 👎 瞎爆 按鈕 */}
-              <button
-                id={`btn-downvote-${post.id}`}
-                onClick={() => onVote(post.id, 'down')}
-                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[10px] font-bold border transition-colors ${
-                  userVote === 'down'
-                    ? 'text-white bg-neutral-800 border-neutral-700'
-                    : 'text-neutral-400 bg-neutral-950 border-[#262626] hover:text-white hover:bg-neutral-900'
-                }`}
-              >
-                <ThumbsDown className="h-3 w-3" />
-                <span>瞎爆</span>
-                <span className={`text-[9px] pl-0.5 ${userVote === 'down' ? 'text-neutral-350' : 'text-neutral-500'}`}>{post.downvotes}</span>
-              </button>
+            {/* 👎 瞎爆 按鈕 */}
+            <button
+              id={`btn-downvote-${post.id}`}
+              onClick={() => onVote(post.id, 'down')}
+              className={`flex items-center gap-1.5 text-[11px] font-bold transition-colors cursor-pointer ${
+                userVote === 'down'
+                  ? 'text-white fill-white'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              <ThumbsDown className={`h-4 w-4 ${userVote === 'down' ? 'fill-white' : ''}`} />
+              <span>{post.downvotes > 0 ? post.downvotes : ''}</span>
+            </button>
 
-              {/* 留言數顯示連結 */}
-              <button
-                onClick={() => setShowComments(!showComments)}
-                className="flex items-center gap-1 text-[10px] font-bold text-neutral-500 hover:text-white transition-colors pl-1"
-                title={showComments ? '收合留言' : '查看留言'}
-              >
-                <MessageSquare className="h-3 w-3" />
-                <span>{commentsList.length} 則回覆</span>
-              </button>
-            </div>
+            {/* 留言數 */}
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-500 hover:text-white transition-colors cursor-pointer"
+              title={showComments ? '收合留言' : '查看留言'}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>{commentsList.length > 0 ? commentsList.length : ''}</span>
+            </button>
 
-            {/* 右側：分享/匯出戰報按鈕 */}
+            {/* 分享按鈕 */}
             <button
               id={`btn-share-${post.id}`}
               onClick={() => onShare(post)}
-              className="flex items-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-bold border text-neutral-400 bg-neutral-950 border-[#262626] hover:text-white hover:bg-neutral-900 transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-500 hover:text-white transition-colors cursor-pointer ml-auto"
               title="匯出分享圖卡"
             >
-              <Share2 className="h-3 w-3" />
-              <span>分享圖卡</span>
+              <Share2 className="h-4 w-4" />
             </button>
 
           </div>

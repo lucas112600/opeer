@@ -28,6 +28,7 @@ export interface Post {
   has_sensitive_content: boolean; // 是否包含敏感爭議話題
   created_at: string;
   algorithm_score?: number; // 智慧推薦熱度分數
+  views: number; // 觀看次數
   image_url?: string | null; // 話題附加照片網址或 Base64 字串
   video_url?: string | null; // 話題附加影片網址或 Base64 字串
   audio_url?: string | null; // 話題語音錄製 Base64 字串
@@ -262,6 +263,60 @@ export const db = {
 
   // --- 串文話題管理 ---
   
+  // --- 話題觀看次數追蹤 ---
+  incrementPostViews: async (postId: string, currentViews: number): Promise<void> => {
+    if (!isSupabaseConfigured) return;
+    const { error } = await supabase
+      .from('posts')
+      .update({ views: currentViews + 1 })
+      .eq('id', postId);
+    if (error) console.error('更新觀看次數失敗：', error);
+  },
+
+  // --- 個人主頁資料抓取 ---
+  getUserPosts: async (userId: string): Promise<Post[]> => {
+    if (!isSupabaseConfigured) return [];
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, comments(id)')
+      .eq('author_id', userId)
+      .eq('is_anonymous', false)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Post[];
+  },
+
+  getUserVotedPosts: async (userId: string): Promise<Post[]> => {
+    if (!isSupabaseConfigured) return [];
+    const { data: votes, error: votesError } = await supabase
+      .from('votes')
+      .select('post_id')
+      .eq('user_id', userId);
+    if (votesError) throw votesError;
+    if (!votes || votes.length === 0) return [];
+
+    const postIds = votes.map(v => v.post_id);
+    const { data: posts, error: postsError } = await supabase
+      .from('posts')
+      .select('*, comments(id)')
+      .in('id', postIds)
+      .order('created_at', { ascending: false });
+    if (postsError) throw postsError;
+    return posts as Post[];
+  },
+
+  getUserComments: async (userId: string): Promise<Comment[]> => {
+    if (!isSupabaseConfigured) return [];
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('author_id', userId)
+      .eq('is_anonymous', false)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data as Comment[];
+  },
+
   // 獲取線上所有話題發文
   getPosts: async (orderBy: 'latest' | 'popular' | 'algorithm' = 'latest'): Promise<Post[]> => {
     if (!isSupabaseConfigured) return [];

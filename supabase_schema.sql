@@ -253,3 +253,5 @@ CREATE POLICY "允許上傳者更新自己上傳的檔案"
 ALTER TABLE "public"."profiles" ADD COLUMN IF NOT EXISTS last_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
 ALTER TABLE "public"."profiles" ADD COLUMN IF NOT EXISTS prev_profile_change_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
 
+-- 9. 升級現有 posts 資料表，支援真實觀看次數追蹤
+ALTER TABLE "public"."posts" ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0 NOT NULL;
