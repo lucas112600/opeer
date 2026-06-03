@@ -775,24 +775,6 @@ export default function Home() {
             </button>
           )}
 
-          <div className="w-full flex items-center gap-3 my-6">
-            <div className="flex-1 h-[1px] bg-[#262626]"></div>
-            <span className="text-[10px] font-bold text-neutral-600 uppercase">或</span>
-            <div className="flex-1 h-[1px] bg-[#262626]"></div>
-          </div>
-
-          <button
-            type="button"
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-transparent border border-[#262626] py-3.5 text-xs font-bold text-neutral-400 hover:bg-[#121212] hover:text-white transition-all cursor-not-allowed opacity-60"
-            disabled
-          >
-            <div className="h-5 w-5 rounded-md bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
-              <div className="h-3.5 w-3.5 rounded-sm border-2 border-white flex items-center justify-center">
-                <div className="h-1 w-1 rounded-full bg-white"></div>
-              </div>
-            </div>
-            使用 Instagram 帳號登入 (即將推出)
-          </button>
 
           <button 
             onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
