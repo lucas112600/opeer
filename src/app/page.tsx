@@ -20,7 +20,8 @@ import {
   Mail,
   User,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Check
 } from 'lucide-react';
 import { db, Profile, Post, Notification, Community } from '../lib/db';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -63,6 +64,10 @@ export default function Home() {
   
   const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
   const [appError, setAppError] = useState<string>('');
+  
+  // 新手引導狀態
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [onboardingSelected, setOnboardingSelected] = useState<string[]>([]);
 
   // 2FA 操作安全防護攔截狀態
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -198,6 +203,7 @@ export default function Home() {
 
     const loadCommunities = async () => {
       try {
+        await db.initializeCommunitiesIfNeeded();
         const comms = await db.getCommunities();
         setCommunities(comms);
       } catch (err) {
@@ -242,11 +248,20 @@ export default function Home() {
         try {
           const joined = await db.getJoinedCommunities(currentUser.id);
           setJoinedCommunities(joined);
+          // 若加入的社群小於 3 個，觸發新手引導
+          if (joined.length < 3) {
+            setShowOnboarding(true);
+            setOnboardingSelected(joined.map(c => c.id));
+          } else {
+            setShowOnboarding(false);
+          }
         } catch (err) {}
       };
       loadUserCommunities();
     } else {
       setJoinedCommunities([]);
+      // 若為匿名狀態且有社群列表，則直接開啟引導
+      setShowOnboarding(true);
     }
   }, [currentUser]);
 
@@ -269,6 +284,66 @@ export default function Home() {
     
     fetchFeed(activeTab);
   }, [activeTab, selectedCommunity, fetchFeed, fetchNotifications]);
+
+  if (showOnboarding) {
+    return (
+      <div className="flex flex-col items-center min-h-screen bg-[#0a0a0a] text-[#f3f5f7] p-6 pb-24">
+        <div className="w-full max-w-4xl mx-auto mt-12 mb-8 text-center">
+          <h1 className="text-2xl font-black text-white mb-2 tracking-tight">打造你的專屬情報流</h1>
+          <p className="text-sm text-neutral-500 font-bold">請選擇至少 3 個您感興趣的社群加入（已選擇：{onboardingSelected.length}）</p>
+        </div>
+        
+        <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {communities.map(c => {
+            const isSelected = onboardingSelected.includes(c.id);
+            return (
+              <div 
+                key={c.id}
+                onClick={async () => {
+                  if (isSelected) {
+                    setOnboardingSelected(prev => prev.filter(id => id !== c.id));
+                    if (currentUser) await db.leaveCommunity(c.id, currentUser.id);
+                  } else {
+                    setOnboardingSelected(prev => [...prev, c.id]);
+                    if (currentUser) await db.joinCommunity(c.id, currentUser.id);
+                  }
+                }}
+                className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
+                  isSelected 
+                    ? 'bg-white/10 border-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' 
+                    : 'bg-[#121212] border-[#262626] hover:border-neutral-500 hover:bg-[#1a1a1a]'
+                }`}
+              >
+                {c.logo_url ? (
+                  <img src={c.logo_url} alt={c.name} className="w-12 h-12 rounded-xl object-cover mb-3" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-neutral-900 border border-[#262626] mb-3" />
+                )}
+                <span className="text-xs font-bold text-center text-white line-clamp-1">{c.name}</span>
+                {isSelected && (
+                  <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                    <Check className="w-3 h-3 text-black" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0a0a0a] to-transparent flex justify-center pointer-events-none">
+          <button
+            onClick={() => {
+              if (onboardingSelected.length >= 3) setShowOnboarding(false);
+            }}
+            disabled={onboardingSelected.length < 3}
+            className="pointer-events-auto bg-white text-black px-12 py-3 rounded-full text-sm font-black tracking-widest uppercase transition-all disabled:opacity-50 disabled:bg-neutral-800 disabled:text-neutral-500 hover:scale-105 active:scale-95"
+          >
+            {onboardingSelected.length < 3 ? `還差 ${3 - onboardingSelected.length} 個` : '開始探索'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ----------------------------------------------------
   // 2. 搜尋過濾
@@ -760,93 +835,67 @@ export default function Home() {
       {/* 電腦 Web 專屬多欄式對齊版面 (最大寬度 1040px) */}
       <div className="flex-1 w-full max-w-5xl mx-auto px-6 py-8 flex gap-8 justify-center items-start">
         
-        {/* Left Column: 桌面版極簡快捷側欄 */}
-        <aside className="hidden md:flex flex-col w-44 shrink-0 sticky top-24 gap-6 text-left">
-          <div className="space-y-4">
-            <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block">
-              快速導覽
-            </span>
-            <nav className="flex flex-col gap-1">
+
+
+        {/* Center Column: 置中沉浸式貼文牆 */}
+        <main className="flex-1 w-full max-w-[700px] flex flex-col gap-6 mx-auto">
+          
+          {/* 頂部快捷導覽與社群水平列 */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
               <button 
-                onClick={() => { setActiveTab('algorithm'); setSearchQuery(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  activeTab === 'algorithm' && !searchQuery
-                    ? 'bg-neutral-900 text-white' 
-                    : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
+                onClick={() => { setActiveTab('algorithm'); setSearchQuery(''); setSelectedCommunity(null); }}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors border ${
+                  activeTab === 'algorithm' && !searchQuery && !selectedCommunity
+                    ? 'bg-white text-black border-white' 
+                    : 'bg-[#121212] text-neutral-400 border-[#262626] hover:bg-[#1a1a1a] hover:text-white'
                 }`}
               >
-                <Sparkles className="h-3.5 w-3.5 text-neutral-350" />
+                <Sparkles className="h-3 w-3" />
                 <span>演算法推播</span>
               </button>
               <button 
-                onClick={() => { setActiveTab('latest'); setSearchQuery(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  activeTab === 'latest' && !searchQuery
-                    ? 'bg-neutral-900 text-white' 
-                    : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
+                onClick={() => { setActiveTab('latest'); setSearchQuery(''); setSelectedCommunity(null); }}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors border ${
+                  activeTab === 'latest' && !searchQuery && !selectedCommunity
+                    ? 'bg-white text-black border-white' 
+                    : 'bg-[#121212] text-neutral-400 border-[#262626] hover:bg-[#1a1a1a] hover:text-white'
                 }`}
               >
-                <Clock className="h-3.5 w-3.5" />
+                <Clock className="h-3 w-3" />
                 <span>最新發表</span>
               </button>
               <button 
-                onClick={() => { setActiveTab('popular'); setSearchQuery(''); }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  activeTab === 'popular' && !searchQuery
-                    ? 'bg-neutral-900 text-white' 
-                    : 'text-neutral-400 hover:bg-neutral-950 hover:text-white'
+                onClick={() => { setActiveTab('popular'); setSearchQuery(''); setSelectedCommunity(null); }}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors border ${
+                  activeTab === 'popular' && !searchQuery && !selectedCommunity
+                    ? 'bg-white text-black border-white' 
+                    : 'bg-[#121212] text-neutral-400 border-[#262626] hover:bg-[#1a1a1a] hover:text-white'
                 }`}
               >
-                <Flame className="h-3.5 w-3.5" />
-                <span>熱門公審</span>
+                <Flame className="h-3 w-3" />
+                <span>熱門話題</span>
               </button>
-              <a 
-                href="/docs" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-neutral-400 hover:bg-neutral-955 hover:text-white transition-colors"
-              >
-                <HelpCircle className="h-3.5 w-3.5" />
-                <span>使用規範與 API</span>
-              </a>
-            </nav>
-          </div>
+              
+              <div className="w-[1px] h-4 bg-[#262626] mx-1"></div>
 
-          {currentUser && (
-            <div className="border-t border-[#1f1f1f] pt-5 mt-4 space-y-3.5">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
-                當前分身
-              </span>
-              <div className="bg-[#121212] rounded-xl p-4 text-left space-y-3">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={currentUser.avatar_url}
-                    alt={currentUser.full_name}
-                    className="h-7.5 w-7.5 rounded-full border border-[#262626]"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[11px] font-bold text-neutral-200 block truncate">
-                      {currentUser.full_name}
-                    </span>
-                    <span className="text-[9px] text-neutral-500 block truncate">
-                      @{currentUser.username}
-                    </span>
-                  </div>
-                </div>
+              {/* 已加入的社群快速跳轉 */}
+              {joinedCommunities.map(c => (
                 <button
-                  onClick={() => setIsProfileModalOpen(true)}
-                  className="w-full text-center py-2 rounded-lg bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-[10px] text-neutral-300 font-bold transition-colors cursor-pointer"
+                  key={c.id}
+                  onClick={() => { setActiveTab('community'); setSelectedCommunity(c); setSearchQuery(''); }}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors border ${
+                    activeTab === 'community' && selectedCommunity?.id === c.id
+                      ? 'bg-neutral-800 text-white border-neutral-600'
+                      : 'bg-transparent text-neutral-400 border-[#262626] hover:bg-[#121212] hover:text-white'
+                  }`}
                 >
-                  設定分身
+                  {c.logo_url && <img src={c.logo_url} alt="" className="w-3.5 h-3.5 rounded object-cover" />}
+                  <span>{c.name}</span>
                 </button>
-              </div>
+              ))}
             </div>
-          )}
-        </aside>
-
-        {/* Center Column: 經典 620px 窄版貼文牆 */}
-        <main className="flex-1 w-full max-w-[620px] flex flex-col gap-6">
-          
+          </div>
           {/* 搜尋列 */}
           <section className="relative flex items-center flex-shrink-0">
             <Search className="absolute left-4 h-4 w-4 text-neutral-500" />
@@ -867,14 +916,6 @@ export default function Home() {
               </button>
             )}
           </section>
-
-          {/* 離線預覽狀態提示 */}
-          {!isSupabaseConfigured && (
-            <div className="text-[10px] text-neutral-500 font-medium px-2.5 py-1.5 rounded bg-[#121212] border border-[#262626]/40 flex items-center gap-1.5 leading-none w-fit">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-              <span>目前處於離線預覽模式。配置 .env.local 憑證即可自動連接至 Supabase 實時雲端資料庫。</span>
-            </div>
-          )}
 
           {/* 警告說明 */}
           {appError && (
@@ -1022,96 +1063,7 @@ export default function Home() {
 
         </main>
 
-        {/* Right Column: 桌面版話題標籤篩選與分身宣告手冊 */}
-        <aside className="hidden lg:flex flex-col w-56 shrink-0 sticky top-24 gap-6 text-left">
-          
-          {/* 探索社群與已加入 */}
-          <div className="bg-[#121212] rounded-2xl p-5 space-y-6">
-            
-            {joinedCommunities.length > 0 && (
-              <div className="space-y-4">
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
-                  已加入社群
-                </span>
-                <div className="flex flex-col gap-1">
-                  {joinedCommunities.map((community) => (
-                    <button
-                      key={`joined-${community.id}`}
-                      onClick={() => { setSelectedCommunity(community); setActiveTab('community'); }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
-                        selectedCommunity?.id === community.id && activeTab === 'community'
-                          ? 'bg-neutral-800 text-white'
-                          : 'bg-transparent text-neutral-400 hover:text-white hover:bg-neutral-900'
-                      }`}
-                    >
-                      {community.logo_url ? (
-                        <img src={community.logo_url} alt="Logo" className="w-5 h-5 rounded-md object-cover border border-[#262626]" />
-                      ) : (
-                        <div className="w-5 h-5 rounded-md bg-neutral-950 border border-[#262626] flex items-center justify-center text-[9px] font-black text-neutral-600">
-                          {community.name.substring(0, 1).replace('#', '') || 'C'}
-                        </div>
-                      )}
-                      <span className="text-[11px] font-bold truncate flex-1 text-left">{community.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            <div className="space-y-4">
-              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block pl-1">
-                推薦探索社群
-              </span>
-              <div className="flex flex-col gap-1">
-                {communities.filter(c => !joinedCommunities.find(j => j.id === c.id)).map((community) => (
-                  <button
-                    key={`explore-${community.id}`}
-                    onClick={() => { setSelectedCommunity(community); setActiveTab('community'); }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors cursor-pointer ${
-                      selectedCommunity?.id === community.id && activeTab === 'community'
-                        ? 'bg-neutral-800 text-white'
-                        : 'bg-transparent text-neutral-400 hover:text-white hover:bg-neutral-900'
-                    }`}
-                  >
-                    {community.logo_url ? (
-                      <img src={community.logo_url} alt="Logo" className="w-5 h-5 rounded-md object-cover border border-[#262626]" />
-                    ) : (
-                      <div className="w-5 h-5 rounded-md bg-neutral-950 border border-[#262626] flex items-center justify-center text-[9px] font-black text-neutral-600">
-                        {community.name.substring(0, 1).replace('#', '') || 'C'}
-                      </div>
-                    )}
-                    <span className="text-[11px] font-bold truncate flex-1 text-left">{community.name}</span>
-                    {community.is_official && (
-                      <span className="bg-blue-600/20 text-blue-500 text-[8px] px-1 py-0.5 rounded border border-blue-600/30">官方</span>
-                    )}
-                  </button>
-                ))}
-                {communities.length === 0 && (
-                  <div className="text-[10px] text-neutral-600 text-center py-2">
-                    目前沒有可探索的社群
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* 中性宣告說明卡 */}
-          <div className="bg-[#121212] rounded-2xl p-5 space-y-3">
-            <div className="flex items-center gap-1.5 text-neutral-400">
-              <HelpCircle className="h-4 w-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                關於分身社群
-              </span>
-            </div>
-            <p className="text-[10px] text-neutral-500 leading-relaxed">
-              Opper 是一款開源公共話題討論網站。您可以在右上角隨意編輯使用者暱稱、帳號、自介，甚至切換隨機幾何圖形頭像，擁有全新的社交分身角色。
-            </p>
-            <p className="text-[10px] text-neutral-500 leading-relaxed border-t border-[#262626] pt-2">
-              發表話題時若開啟匿名，系統不會儲存帳號關聯 UUID，此動作將永久斷開個人資訊。
-            </p>
-          </div>
-
-        </aside>
 
       </div>
 

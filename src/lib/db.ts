@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
+import { OFFICIAL_FEEDS } from './official_communities';
 
 export interface Profile {
   id: string;
@@ -833,5 +834,38 @@ export const db = {
     }
     
     return data as Community;
+  },
+
+  initializeCommunitiesIfNeeded: async (): Promise<void> => {
+    if (!isSupabaseConfigured) return;
+    try {
+      // Check if any communities exist
+      const { count, error: countError } = await supabase
+        .from('communities')
+        .select('*', { count: 'exact', head: true });
+        
+      if (countError) throw countError;
+      
+      // If none exist, seed them
+      if (count === 0) {
+        console.log('Seeding official communities...');
+        const inserts = OFFICIAL_FEEDS.map(feed => ({
+          name: feed.name,
+          description: feed.description,
+          logo_url: feed.logo_url,
+          category: feed.category,
+          is_official: true
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('communities')
+          .insert(inserts);
+          
+        if (insertError) throw insertError;
+        console.log('Successfully seeded communities.');
+      }
+    } catch (error) {
+      console.error('Failed to initialize communities:', error);
+    }
   }
 };
