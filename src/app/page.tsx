@@ -1060,6 +1060,7 @@ export default function Home() {
                   key={post.id}
                   post={post}
                   currentUser={currentUser}
+                  communityName={communities.find(c => c.id === post.community_id)?.name}
                   userVote={userVotes[post.id] || null}
                   onVote={handleVote}
                   onShare={(p) => setSelectedPostForShare(p)}

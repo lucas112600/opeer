@@ -15,6 +15,7 @@ interface PostCardProps {
   showAlert?: (title: string, message: string, onConfirm?: () => void) => void;
   showConfirm?: (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => void;
   onViewProfile?: (userId: string) => void;
+  communityName?: string;
 }
 
 export default function PostCard({
@@ -28,6 +29,7 @@ export default function PostCard({
   showAlert,
   showConfirm,
   onViewProfile,
+  communityName,
 }: PostCardProps) {
   const alert = (message: string) => {
     if (showAlert) {
@@ -327,6 +329,9 @@ export default function PostCard({
             </button>
 
             <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded mr-1">
+                {communityName || '一般類別'}
+              </span>
               <span className="text-[9px] text-neutral-500 flex items-center gap-1">
                 👁️ <span>{liveViews.toLocaleString()} 次觀看</span>
               </span>
