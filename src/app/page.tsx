@@ -285,65 +285,7 @@ export default function Home() {
     fetchFeed(activeTab);
   }, [activeTab, selectedCommunity, fetchFeed, fetchNotifications]);
 
-  if (showOnboarding) {
-    return (
-      <div className="flex flex-col items-center min-h-screen bg-[#0a0a0a] text-[#f3f5f7] p-6 pb-24">
-        <div className="w-full max-w-4xl mx-auto mt-12 mb-8 text-center">
-          <h1 className="text-2xl font-black text-white mb-2 tracking-tight">打造你的專屬情報流</h1>
-          <p className="text-sm text-neutral-500 font-bold">請選擇至少 3 個您感興趣的社群加入（已選擇：{onboardingSelected.length}）</p>
-        </div>
-        
-        <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {communities.map(c => {
-            const isSelected = onboardingSelected.includes(c.id);
-            return (
-              <div 
-                key={c.id}
-                onClick={async () => {
-                  if (isSelected) {
-                    setOnboardingSelected(prev => prev.filter(id => id !== c.id));
-                    if (currentUser) await db.leaveCommunity(c.id, currentUser.id);
-                  } else {
-                    setOnboardingSelected(prev => [...prev, c.id]);
-                    if (currentUser) await db.joinCommunity(c.id, currentUser.id);
-                  }
-                }}
-                className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
-                  isSelected 
-                    ? 'bg-white/10 border-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' 
-                    : 'bg-[#121212] border-[#262626] hover:border-neutral-500 hover:bg-[#1a1a1a]'
-                }`}
-              >
-                {c.logo_url ? (
-                  <img src={c.logo_url} alt={c.name} className="w-12 h-12 rounded-xl object-cover mb-3" />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-neutral-900 border border-[#262626] mb-3" />
-                )}
-                <span className="text-xs font-bold text-center text-white line-clamp-1">{c.name}</span>
-                {isSelected && (
-                  <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                    <Check className="w-3 h-3 text-black" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
 
-        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0a0a0a] to-transparent flex justify-center pointer-events-none">
-          <button
-            onClick={() => {
-              if (onboardingSelected.length >= 3) setShowOnboarding(false);
-            }}
-            disabled={onboardingSelected.length < 3}
-            className="pointer-events-auto bg-white text-black px-12 py-3 rounded-full text-sm font-black tracking-widest uppercase transition-all disabled:opacity-50 disabled:bg-neutral-800 disabled:text-neutral-500 hover:scale-105 active:scale-95"
-          >
-            {onboardingSelected.length < 3 ? `還差 ${3 - onboardingSelected.length} 個` : '開始探索'}
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // ----------------------------------------------------
   // 2. 搜尋過濾
@@ -795,6 +737,66 @@ export default function Home() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="flex flex-col items-center min-h-screen bg-[#0a0a0a] text-[#f3f5f7] p-6 pb-24">
+        <div className="w-full max-w-4xl mx-auto mt-12 mb-8 text-center">
+          <h1 className="text-2xl font-black text-white mb-2 tracking-tight">打造你的專屬情報流</h1>
+          <p className="text-sm text-neutral-500 font-bold">請選擇至少 3 個您感興趣的社群加入（已選擇：{onboardingSelected.length}）</p>
+        </div>
+        
+        <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {communities.map(c => {
+            const isSelected = onboardingSelected.includes(c.id);
+            return (
+              <div 
+                key={c.id}
+                onClick={async () => {
+                  if (isSelected) {
+                    setOnboardingSelected(prev => prev.filter(id => id !== c.id));
+                    if (currentUser) await db.leaveCommunity(c.id, currentUser.id);
+                  } else {
+                    setOnboardingSelected(prev => [...prev, c.id]);
+                    if (currentUser) await db.joinCommunity(c.id, currentUser.id);
+                  }
+                }}
+                className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border transition-all cursor-pointer overflow-hidden ${
+                  isSelected 
+                    ? 'bg-white/10 border-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' 
+                    : 'bg-[#121212] border-[#262626] hover:border-neutral-500 hover:bg-[#1a1a1a]'
+                }`}
+              >
+                {c.logo_url ? (
+                  <img src={c.logo_url} alt={c.name} className="w-12 h-12 rounded-xl object-cover mb-3" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-neutral-900 border border-[#262626] mb-3" />
+                )}
+                <span className="text-xs font-bold text-center text-white line-clamp-1">{c.name}</span>
+                {isSelected && (
+                  <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
+                    <Check className="w-3 h-3 text-black" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0a0a0a] to-transparent flex justify-center pointer-events-none">
+          <button
+            onClick={() => {
+              if (onboardingSelected.length >= 3) setShowOnboarding(false);
+            }}
+            disabled={onboardingSelected.length < 3}
+            className="pointer-events-auto bg-white text-black px-12 py-3 rounded-full text-sm font-black tracking-widest uppercase transition-all disabled:opacity-50 disabled:bg-neutral-800 disabled:text-neutral-500 hover:scale-105 active:scale-95"
+          >
+            {onboardingSelected.length < 3 ? `還差 ${3 - onboardingSelected.length} 個` : '開始探索'}
+          </button>
         </div>
       </div>
     );
