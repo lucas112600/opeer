@@ -356,7 +356,7 @@ export default function PostCard({
 
               {/* 話題相片 */}
               {post.image_url && (
-                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden border border-[#262626] bg-neutral-950 max-h-[360px] flex items-center justify-center animate-fade-in">
+                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden bg-neutral-950 max-h-[360px] flex items-center justify-center animate-fade-in">
                   <img
                     src={post.image_url}
                     alt="話題相片"
@@ -367,7 +367,7 @@ export default function PostCard({
 
               {/* 話題影片 */}
               {post.video_url && (
-                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden border border-[#262626] bg-black max-h-[360px] flex items-center justify-center animate-fade-in">
+                <div className="mt-2.5 mb-4 relative rounded-lg overflow-hidden bg-black max-h-[360px] flex items-center justify-center animate-fade-in">
                   <video
                     src={post.video_url}
                     controls

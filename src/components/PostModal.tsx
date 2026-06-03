@@ -346,7 +346,7 @@ export default function PostModal({
               {/* Attachments Preview */}
               <div className="flex flex-col gap-3 mt-2">
                 {imageUrl && (
-                  <div className="relative rounded-xl border border-[#1f1f1f] overflow-hidden max-w-sm">
+                  <div className="relative rounded-xl overflow-hidden max-w-sm bg-neutral-900">
                     <img src={imageUrl} alt="preview" className="w-full h-auto" />
                     <button onClick={() => { setImageUrl(''); setImageFile(null); }} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white hover:bg-black/80">
                       <X className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function PostModal({
                   </div>
                 )}
                 {videoUrl && (
-                  <div className="relative rounded-xl border border-[#1f1f1f] overflow-hidden max-w-sm">
+                  <div className="relative rounded-xl overflow-hidden max-w-sm bg-neutral-900">
                     <video src={videoUrl} className="w-full h-auto" controls />
                     <button onClick={() => { setVideoUrl(''); setVideoFile(null); }} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded-full text-white hover:bg-black/80">
                       <X className="h-4 w-4" />
