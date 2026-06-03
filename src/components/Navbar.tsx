@@ -31,9 +31,6 @@ export default function Navbar({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="Opper" className="h-full w-full object-cover" />
           </div>
-          <span className="text-sm font-black tracking-tight text-white">
-            Opper
-          </span>
         </div>
 
         {/* Right Side: Navigation Actions */}
