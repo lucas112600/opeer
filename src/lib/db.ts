@@ -864,8 +864,11 @@ export const db = {
         if (insertError) throw insertError;
         console.log('Successfully seeded communities.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to initialize communities:', error);
+      if (typeof window !== 'undefined') {
+        alert('初始化社群失敗：' + (error.message || JSON.stringify(error)));
+      }
     }
   }
 };
