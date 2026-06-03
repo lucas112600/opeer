@@ -53,6 +53,7 @@ export default function Home() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Community[]>([]);
   const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
+  const [selectedCommunityMemberCount, setSelectedCommunityMemberCount] = useState<number>(0);
 
   // 彈窗與通知抽屜控制
   const [isPostModalOpen, setIsPostModalOpen] = useState<boolean>(false);
@@ -253,6 +254,19 @@ export default function Home() {
     if (activeTab === 'community' && !selectedCommunity) {
       return;
     }
+    
+    if (activeTab === 'community' && selectedCommunity) {
+      const loadMemberCount = async () => {
+        try {
+          const count = await db.getCommunityMemberCount(selectedCommunity.id);
+          setSelectedCommunityMemberCount(count);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+      loadMemberCount();
+    }
+    
     fetchFeed(activeTab);
   }, [activeTab, selectedCommunity, fetchFeed, fetchNotifications]);
 
@@ -891,8 +905,8 @@ export default function Home() {
                   <p className="text-xs text-neutral-400 mb-3">{selectedCommunity.description}</p>
                   
                   <div className="flex items-center gap-4 text-[10px] text-neutral-500 font-medium">
-                    <span className="flex items-center gap-1"><User className="w-3 h-3"/> 總人數: {Math.floor(Math.random() * 5000) + 100}</span>
-                    <span className="flex items-center gap-1 text-emerald-500"><Sparkles className="w-3 h-3"/> 線上: {Math.floor(Math.random() * 500) + 10}</span>
+                    <span className="flex items-center gap-1"><User className="w-3 h-3"/> 總人數: {selectedCommunityMemberCount}</span>
+                    <span className="flex items-center gap-1 text-emerald-500"><Sparkles className="w-3 h-3"/> 線上: 依實際活躍計算</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> 創立於: {new Date(selectedCommunity.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>

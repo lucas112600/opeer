@@ -774,6 +774,16 @@ export const db = {
     return data.map((item: any) => item.communities as Community);
   },
 
+  getCommunityMemberCount: async (communityId: string): Promise<number> => {
+    if (!isSupabaseConfigured) return 0;
+    const { count, error } = await supabase
+      .from('community_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('community_id', communityId);
+    if (error) throw error;
+    return count || 0;
+  },
+
   joinCommunity: async (communityId: string, userId: string): Promise<void> => {
     if (!isSupabaseConfigured) throw new Error('資料庫未配置。');
     const { error } = await supabase
